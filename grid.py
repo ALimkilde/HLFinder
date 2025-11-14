@@ -128,3 +128,18 @@ class Grid:
     def get_highline_mask_by_max_min(self, H):
         mask = np.greater(self.max_with_neighbors() - self.min_vals, H)
         return mask
+
+    def get_highline_coords(self, H):
+        """
+        Returns a list of (north, east) coordinates where the highline mask is True.
+        """
+        mask = self.get_highline_mask_by_max_min(H)
+        rows, cols = np.where(mask)
+
+        # Convert row/col indices back to geographic coordinates
+        norths = self.north_max - rows
+        easts = self.east_min + cols
+
+        return list(zip(norths, easts))
+
+
