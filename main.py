@@ -6,9 +6,10 @@ from pathlib import Path
 import numpy as np
 from grid import Grid
 from search_image import SearchImage
-from hl_finder import brute_force_search
+from hl_finder import brute_force_search, pixel_slope_gaussian, pixel_slope_sobel_physical, brute_force_search_masked
 import math
 from scipy.ndimage import maximum_filter, zoom
+from quad_tree import QuadTree
 
 import re
 
@@ -197,7 +198,7 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
 def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
 
     max_hl_length_in_km = math.ceil(max_hl_length/1000)
-    px_pr_meter = float(tile_size_px)/float(tile_size_meter)
+    px_size_m = float(tile_size_px)/float(tile_size_meter)
 
     north_min = north - max_hl_length_in_km
     north_max = north + max_hl_length_in_km
@@ -208,12 +209,12 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
  
     mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
-    crop_px = tile_size_px - math.ceil(max_hl_length*px_pr_meter)
+    crop_px = tile_size_px - math.ceil(max_hl_length*px_size_m)
     print(f"Crop: {crop_px}")
 
     arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
     
-    n = math.floor(px_pr_meter * px_size_m_output)
+    n = math.floor(px_size_m * px_size_m_output)
     print(f"n: {n}")
     out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
     
@@ -247,31 +248,45 @@ if __name__ == "__main__":
     px_size_m_output = 1
     im = get_search_picture(fld, c1_north, c1_east, max_hl_length, px_size_m_output)
 
-    plt.figure()
-    plt.imshow(im)
+    # plt.figure()
+    # plt.imshow(im)
 
-    sim = SearchImage.coarse(im, 1, 200, 'max')
-    sim.plot()
+    tmp = 10
+    sim = SearchImage.coarse(im, 1, tmp, 'max')
+    # sim.plot()
 
-    sim2 = SearchImage.coarse(im, 1, 200, 'min')
-    sim2.plot()
+    sim2 = SearchImage.coarse(im, 1, tmp, 'min')
+    # sim2.plot()
+    
 
-    x,y = 1, 1
-    xold, yold = sim2.get_original_px(x,y)
-    print(f"Original of ({x},{y}) is ({xold},{yold})")
+    # plt.figure()
+    # slope = pixel_slope_gaussian(sim.image, sigma=100)*1
+    # slope = pixel_slope_sobel_physical(sim.image, tmp)*1
+    # plt.imshow(np.greater(slope,0.0))
+    # print(slope)
 
-    plt.show()
-    sys.exit()
+
+    # x,y = 1, 1
+    # xold, yold = sim2.get_original_px(x,y)
+    # print(f"Original of ({x},{y}) is ({xold},{yold})")
+
+    # plt.show()
+    # qtree = QuadTree(im, max_hl_length, px_size_m_output, tmp)
+
+    # qtree.plot_all_levels()
+    # plt.show()
+    # sys.exit()
 
     # im = mark_pixels_within_bounds(im, px_size_m_output, (140, 40), min_hl_length, max_hl_length, value=H)
-    im = brute_force_search(im, px_size_m_output, min_hl_length, max_hl_length, 30)
+    im = brute_force_search_masked(sim.image, tmp, min_hl_length, max_hl_length, 30)
+    # im = qtree.search_finest_level(30, min_hl_length)
 
     print(im)
     plt.figure()
     plt.imshow(im)
     plt.axis("off")  # Hide the axes
     plt.title("Search image")
-    plt.show()
+    # plt.show()
 
     # print(min_grid)
     # print(max_grid)
