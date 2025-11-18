@@ -181,7 +181,7 @@ if __name__ == "__main__":
         plt.title(f"Tile {c1_north},{c1_east}")
 
     print(df)
-    df.to_csv("test.csv", sep='\t')
+    df.to_csv("test.csv", sep=' ')
     # plt.show()
 
     # print(min_grid)
