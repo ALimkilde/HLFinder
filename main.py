@@ -5,11 +5,11 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 from grid import Grid
-from search_image import SearchImage
-from hl_finder import brute_force_search, pixel_slope_gaussian, pixel_slope_sobel_physical, brute_force_search_masked
+from hl_finder import pixel_slope_gaussian, pixel_slope_sobel_physical, search_highline, create_hl_dataframe
+from search_picture import SearchPicture, get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
-from quad_tree import QuadTree
+import pandas as pd
 
 import re
 
@@ -140,85 +140,7 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
 
     print(f"✅ Metadata written to {out_file}")
 
-def combine_tiles(folder_path, north_min, north_max, east_min, east_max, 
-                  tile_size_km=1, tile_px=2500):
-    """
-    Combines grayscale tiles (DTM_1km_<north>_<east>.png) into one large
-    NumPy array covering the specified grid bounds.
 
-    Parameters:
-        folder_path (str or Path): Directory containing the tiles
-        north_min, north_max, east_min, east_max (int): Bounds in grid indices
-        tile_size_km (int): Tile size in km (default 1)
-        tile_px (int): Tile size in pixels (default 1000)
-    
-    Returns:
-        np.ndarray or None: The combined 2D array (grayscale values)
-    """
-
-    folder = Path(folder_path)
-
-    # Calculate output dimensions
-    n_rows = north_max - north_min + 1
-    n_cols = east_max - east_min + 1
-    out_h = n_rows * tile_px
-    out_w = n_cols * tile_px
-
-    # Initialize mosaic as float or uint8 (depending on your data)
-    mosaic = np.zeros((out_h, out_w), dtype=np.uint8)
-
-    tiles_found = False
-
-    for north in range(north_min, north_max + 1):
-        for east in range(east_min, east_max + 1):
-            filename = f"DTM_{tile_size_km}km_{north}_{east}.png"
-            path = folder / filename
-            if not path.exists():
-                continue
-
-            tiles_found = True
-
-            # Read tile as grayscale NumPy array
-            img = np.array(Image.open(path).convert("L"))
-
-            # Compute placement in output
-            col = east - east_min
-            row = north_max - north  # north decreases downward
-            y0 = row * tile_px
-            x0 = col * tile_px
-
-            mosaic[y0:y0 + tile_px, x0:x0 + tile_px] = img
-
-    if not tiles_found:
-        print("⚠️ No tiles found in the given bounds.")
-        return None
-
-    return mosaic
-
-def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
-
-    max_hl_length_in_km = math.ceil(max_hl_length/1000)
-    px_size_m = float(tile_size_px)/float(tile_size_meter)
-
-    north_min = north - max_hl_length_in_km
-    north_max = north + max_hl_length_in_km
-    east_min = east - max_hl_length_in_km
-    east_max = east + max_hl_length_in_km
-
-    print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
- 
-    mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
-
-    crop_px = tile_size_px - math.ceil(max_hl_length*px_size_m)
-    print(f"Crop: {crop_px}")
-
-    arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
-    
-    n = math.floor(px_size_m * px_size_m_output)
-    print(f"n: {n}")
-    out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
-    
-    return out
 
 if __name__ == "__main__":
     # Check that the user provided a folder path
@@ -239,53 +161,27 @@ if __name__ == "__main__":
     grid = Grid.from_info_files(fld,north_min, north_max, east_min, east_max)
 
     coords = grid.get_highline_coords(H)
+    print(f"coords: {coords}")
 
-    c1_north, c1_east = coords[0]
-    print(f"({c1_north}, {c1_east})")
+    df = create_hl_dataframe()
+    for c1_north, c1_east in coords:
+        print(f"({c1_north}, {c1_east})")
 
-    min_hl_length = 170
-    max_hl_length = 250
-    px_size_m_output = 1
-    im = get_search_picture(fld, c1_north, c1_east, max_hl_length, px_size_m_output)
+        min_hl_length = 100
+        max_hl_length = 350
+        px_size_m_output = 5
+        search_pic, px_size_m_output = get_search_picture(fld, c1_north, c1_east, max_hl_length, px_size_m_output)
 
-    # plt.figure()
-    # plt.imshow(im)
-
-    tmp = 10
-    sim = SearchImage.coarse(im, 1, tmp, 'max')
-    # sim.plot()
-
-    sim2 = SearchImage.coarse(im, 1, tmp, 'min')
-    # sim2.plot()
-    
-
-    # plt.figure()
-    # slope = pixel_slope_gaussian(sim.image, sigma=100)*1
-    # slope = pixel_slope_sobel_physical(sim.image, tmp)*1
-    # plt.imshow(np.greater(slope,0.0))
-    # print(slope)
+        search_pic, df = search_highline(df, search_pic, px_size_m_output, min_hl_length, max_hl_length, H)
 
 
-    # x,y = 1, 1
-    # xold, yold = sim2.get_original_px(x,y)
-    # print(f"Original of ({x},{y}) is ({xold},{yold})")
+        plt.figure()
+        plt.imshow(search_pic.get_im_marked())
+        plt.axis("off")  # Hide the axes
+        plt.title(f"Tile {c1_north},{c1_east}")
 
-    # plt.show()
-    # qtree = QuadTree(im, max_hl_length, px_size_m_output, tmp)
-
-    # qtree.plot_all_levels()
-    # plt.show()
-    # sys.exit()
-
-    # im = mark_pixels_within_bounds(im, px_size_m_output, (140, 40), min_hl_length, max_hl_length, value=H)
-    im = brute_force_search_masked(sim.image, tmp, min_hl_length, max_hl_length, 30)
-    # im = qtree.search_finest_level(30, min_hl_length)
-
-    print(im)
-    plt.figure()
-    plt.imshow(im)
-    plt.axis("off")  # Hide the axes
-    plt.title("Search image")
+    print(df)
+    df.to_csv("test.csv", sep='\t')
     # plt.show()
 
     # print(min_grid)
