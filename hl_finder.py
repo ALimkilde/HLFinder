@@ -88,11 +88,11 @@ def get_extended_max_mask(im, px_size_m, max_hl_length, H, filter_type):
 
      mask = maximum_filter(mask, size=(n_extended, n_extended), mode='nearest')
 
-     return mask, n_extended
+     return mask
 
 def get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H):
-    extmax_mask, n_extended = get_extended_max_mask(im, px_size_m, max_hl_length, H, 'max')
-    extmin_mask, n_extended = get_extended_max_mask(im, px_size_m, max_hl_length, H, 'min')
+    extmax_mask = get_extended_max_mask(im, px_size_m, max_hl_length, H, 'max')
+    extmin_mask = get_extended_max_mask(im, px_size_m, max_hl_length, H, 'min')
 
     # Slope mask
     gx,gy = np.gradient(im, 5)
@@ -117,14 +117,17 @@ def get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H):
     # plt.imshow(mask)
     # plt.show()
 
-    return mask, n_extended
+    return mask
 
 def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
 
     nx, ny = search_pic.shape()
     im = search_pic.get_im()
     
-    mask, n_extended = get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H)
+    mask = get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H)
+
+    n_extended = math.ceil(max_hl_length/(px_size_m))
+    print(f"n_extended: {n_extended}")
 
     rows, cols = np.where(mask)
 
@@ -144,6 +147,9 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
 
              l = search_pic.get_distance_px_to_m(r0,c0,r,c)
              if (l<min_hl_length):
+                 continue
+
+             if (l>max_hl_length):
                  continue
 
              h = float(im[r, c])
@@ -171,10 +177,7 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
                  search_pic.mark(rm, cm)
                  search_pic.mark(r0, c0)
                  search_pic.mark(r, c)
-                 break
           
-         if (h < H):
-             continue
 
     return search_pic, df
 

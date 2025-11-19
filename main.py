@@ -10,6 +10,7 @@ from search_picture import SearchPicture, get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
 import pandas as pd
+from scipy.spatial import KDTree
 
 import re
 
@@ -141,6 +142,63 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
     print(f"✅ Metadata written to {out_file}")
 
 
+def cluster_and_extract(df, radius=100):
+    """
+    Groups rows whose (midx, midy) are within `radius` meters of each other,
+    then returns a dataframe with the longest, shortest, and highest rows
+    from each spatial cluster.
+    """
+
+    coords = df[['midx', 'midy']].values
+    tree = KDTree(coords)
+
+    # Step 1: Find clusters (connected components)
+    n = len(df)
+    visited = np.zeros(n, dtype=bool)
+    clusters = []
+
+    for i in range(n):
+        if visited[i]:
+            continue
+
+        # BFS to collect all neighbors recursively within radius
+        cluster = []
+        queue = [i]
+        visited[i] = True
+
+        while queue:
+            idx = queue.pop()
+            cluster.append(idx)
+
+            # find neighbors within radius
+            neighbors = tree.query_ball_point(coords[idx], r=radius)
+            for nb in neighbors:
+                if not visited[nb]:
+                    visited[nb] = True
+                    queue.append(nb)
+
+        clusters.append(cluster)
+
+    # Step 2: For each cluster, get rows with:
+    #   - max length
+    #   - min length
+    #   - max height
+    result_rows = []
+
+    for cluster in clusters:
+        sub = df.iloc[cluster]
+
+        longest = sub.loc[sub['length'].idxmax()]
+        shortest = sub.loc[sub['length'].idxmin()]
+        highest = sub.loc[sub['height'].idxmax()]
+
+        result_rows.extend([longest, shortest, highest])
+
+    # Step 3: Build result dataframe (remove duplicates)
+    result_df = pd.DataFrame(result_rows).drop_duplicates().reset_index(drop=True)
+    return result_df
+
+
 
 if __name__ == "__main__":
     # Check that the user provided a folder path
@@ -152,13 +210,16 @@ if __name__ == "__main__":
     H = float(sys.argv[2])
 
     north_min=6130
-    north_max=6139
-    east_min=710
+    north_max=6189
+    east_min=700
     east_max=719
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # write_meta_data_tiles(fld, north_min, north_max, east_min, east_max, tile_size_km, tile_px)
     grid = Grid.from_info_files(fld,north_min, north_max, east_min, east_max)
+
+    if (grid == None):
+        sys.exit()
 
     coords = grid.get_highline_coords(H)
     print(f"coords: {coords}")
@@ -169,19 +230,24 @@ if __name__ == "__main__":
 
         min_hl_length = 100
         max_hl_length = 350
-        px_size_m_output = 5
+        px_size_m_output = 10
         search_pic, px_size_m_output = get_search_picture(fld, c1_north, c1_east, max_hl_length, px_size_m_output)
 
         search_pic, df = search_highline(df, search_pic, px_size_m_output, min_hl_length, max_hl_length, H)
 
 
-        plt.figure()
-        plt.imshow(search_pic.get_im_marked())
-        plt.axis("off")  # Hide the axes
-        plt.title(f"Tile {c1_north},{c1_east}")
+        # plt.figure()
+        # plt.imshow(search_pic.get_im_marked())
+        # plt.axis("off")  # Hide the axes
+        # plt.title(f"Tile {c1_north},{c1_east}")
 
-    print(df)
-    df.to_csv("test.csv", sep=' ')
+
+
+    df.to_csv("all_lines.csv", sep=' ')
+
+    clustered_df = cluster_and_extract(df)
+    clustered_df.to_csv("clustered_lines.csv", sep=' ')
+
     # plt.show()
 
     # print(min_grid)

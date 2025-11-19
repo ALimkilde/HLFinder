@@ -1,13 +1,13 @@
 import pandas as pd
 import folium
 from pyproj import Transformer
-import json
+import sys
 
 # -------------------------------------------------------
 # SETTINGS
 # -------------------------------------------------------
-CSV_FILE = "test.csv"
-OUTPUT_HTML = "map.html"
+CSV_FILE = sys.argv[1]
+OUTPUT_HTML = sys.argv[2]
 UTM_ZONE = 32
 HEMISPHERE = "north"
 # -------------------------------------------------------
@@ -25,51 +25,51 @@ def utm_to_latlon(x, y):
 # -------------------------------------------------------
 df = pd.read_csv(CSV_FILE, sep=" ")
 
-# Precompute slider ranges
-min_len, max_len = df["length"].min(), df["length"].max()
-min_h, max_h     = df["height"].min(), df["height"].max()
+# Create color scale by height
+min_h, max_h = df["height"].min(), df["height"].max()
 
-# -------------------------------------------------------
-# FUNCTION: color by height
-# -------------------------------------------------------
 def height_color(h):
-    # blue → orange → red
-    if h < min_h + (max_h-min_h)*0.33:
-        return "#2a78db"   # blue
-    elif h < min_h + (max_h-min_h)*0.66:
-        return "#ff8c00"   # orange
-    else:
-        return "#d73027"   # red
+    t = (h - min_h) / (max_h - min_h + 1e-9)
+    # blue → red gradient
+    r = int(255 * t)
+    b = int(255 * (1 - t))
+    return f"rgb({r},0,{b})"
 
 # -------------------------------------------------------
-# BUILD GEOJSON FEATURES
+# BUILD GEOJSON LINES
 # -------------------------------------------------------
 features = []
 
 for _, row in df.iterrows():
 
+    # Convert endpoints
     lat1, lon1 = utm_to_latlon(row["a1x"], row["a1y"])
     lat2, lon2 = utm_to_latlon(row["a2x"], row["a2y"])
 
+    # Convert midpoint in UTM -> WGS84 for Google Maps link
+    center_lat, center_lon = utm_to_latlon(row["midx"], row["midy"])
+
+    google_link = f"https://www.google.com/maps?q={center_lat},{center_lon}"
+
     popup_html = f"""
-    <b>ID:</b> {row['midx']}<br>
-    <b>Length:</b> {row['length']:.2f}<br>
-    <b>Height:</b> {row['height']:.2f}<br>
-    <b>hmid:</b> {row['hmid']}<br>
-    <b>ha1:</b> {row['ha1']}<br>
-    <b>ha2:</b> {row['ha2']}<br>
+    <b>Center UTM:</b><br>
+{row['midx']} {row['midy']}<br><br>
+
+    <b>Length:</b> {row['length']:.1f}<br>
+    <b>Height:</b> {row['height']:.1f}<br><br>
+
+    <a href='{google_link}' target='_blank'>Open in Google Maps</a>
     """
 
-    color = height_color(row["height"])
-
-    feature = {
+    features.append({
         "type": "Feature",
         "properties": {
-            "id": int(row["midx"]),
+            "midx": float(row["midx"]),
+            "midy": float(row["midy"]),
             "length": float(row["length"]),
             "height": float(row["height"]),
-            "popup": popup_html,
-            "color": color
+            "color": height_color(row["height"]),
+            "popup": popup_html
         },
         "geometry": {
             "type": "LineString",
@@ -78,109 +78,154 @@ for _, row in df.iterrows():
                 [lon2, lat2]
             ]
         }
-    }
+    })
 
-    features.append(feature)
 
 geojson = {"type": "FeatureCollection", "features": features}
 
 # -------------------------------------------------------
-# CREATE THE MAP
+# CREATE MAP
 # -------------------------------------------------------
 center_lat, center_lon = utm_to_latlon(df["midx"].mean(), df["midy"].mean())
+
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles="cartodbpositron")
 
 gj = folium.GeoJson(
     geojson,
     name="Lines",
-    style_function=lambda feat: {
-        "color": feat["properties"]["color"],
+    style_function=lambda f: {
+        "color": f["properties"]["color"],
         "weight": 3,
-        "opacity": 0.9
+        "opacity": 0.9,
     },
-    tooltip=folium.GeoJsonTooltip(fields=["id"]),
+    tooltip=folium.GeoJsonTooltip(fields=["midx", "midy"]),
     popup=folium.GeoJsonPopup(fields=["popup"])
 ).add_to(m)
 
-# -------------------------------------------------------
-# ADD RANGE FILTER PANELS
-# -------------------------------------------------------
-filter_script = f"""
-<script>
-var gjLayer = {gj.get_name()};
-var features = [];
+map_id = m.get_name()
+gj_id = gj.get_name()
 
-// Collect all individual line layers once initialized
-gjLayer.on('add', function() {{
-    gjLayer.eachLayer(function(layer) {{
-        features.push(layer);
-    }});
+# -------------------------------------------------------
+# ADD LEAFLET DRAW FOR RECTANGLE SELECTION
+# -------------------------------------------------------
+draw_code = f"""
+<script>
+
+// Real map object created by Folium
+var map = {map_id};
+var gjLayer = {gj_id};
+
+// Store references to line layers
+var lineLayers = [];
+
+gjLayer.eachLayer(function(layer) {{
+    lineLayers.push(layer);
 }});
 
-function applyFilters() {{
-    var lenMin = parseFloat(document.getElementById('lengthMin').value);
-    var lenMax = parseFloat(document.getElementById('lengthMax').value);
+// Add Leaflet Draw control
+var drawnItems = new L.FeatureGroup().addTo(map);
+var drawControl = new L.Control.Draw({{
+    draw: {{
+        marker: false,
+        circle: false,
+        polyline: false,
+        polygon: false,
+        circlemarker: false,
+        rectangle: true
+    }},
+    edit: false
+}});
+map.addControl(drawControl);
 
-    var hMin = parseFloat(document.getElementById('heightMin').value);
-    var hMax = parseFloat(document.getElementById('heightMax').value);
+// Helper: check if line intersects rectangle
+function lineIntersectsRectangle(line, bounds) {{
+    var coords = line.feature.geometry.coordinates;
 
-    features.forEach(function(line) {{
-        var p = line.feature.properties;
+    var p1 = L.latLng(coords[0][1], coords[0][0]);
+    var p2 = L.latLng(coords[1][1], coords[1][0]);
 
-        var inLength = (p.length >= lenMin && p.length <= lenMax);
-        var inHeight = (p.height >= hMin && p.height <= hMax);
+    // If either endpoint is inside rectangle
+    if (bounds.contains(p1) || bounds.contains(p2)) {{
+        return true;
+    }}
 
-        if (inLength && inHeight) {{
-            if (!line._map) line.addTo(gjLayer._map);
-        }} else {{
-            if (line._map) gjLayer._map.removeLayer(line);
+    // Check if line crosses any rectangle edge
+    var rectPoints = [
+        bounds.getNorthWest(),
+        bounds.getNorthEast(),
+        bounds.getSouthEast(),
+        bounds.getSouthWest(),
+    ];
+
+    // Edges of rectangle
+    var edges = [
+        [rectPoints[0], rectPoints[1]],
+        [rectPoints[1], rectPoints[2]],
+        [rectPoints[2], rectPoints[3]],
+        [rectPoints[3], rectPoints[0]]
+    ];
+
+    function segIntersect(a,b,c,d){{
+        function ccw(p1,p2,p3){{
+            return (p3.lat - p1.lat)*(p2.lng - p1.lng) > (p2.lat - p1.lat)*(p3.lng - p1.lng);
         }}
-    }});
+        return (ccw(a,c,d) != ccw(b,c,d)) && (ccw(a,b,c) != ccw(a,b,d));
+    }}
+
+    for (var i=0; i<edges.length; i++) {{
+        if (segIntersect(p1,p2,edges[i][0],edges[i][1])) {{
+            return true;
+        }}
+    }}
+
+    return false;
 }}
 
+// When rectangle is created
+map.on(L.Draw.Event.CREATED, function (e) {{
+    var layer = e.layer;
+    drawnItems.addLayer(layer);
+
+    var bounds = layer.getBounds();
+
+    var selected = [];
+
+    lineLayers.forEach(function(line) {{
+        if (lineIntersectsRectangle(line, bounds)) {{
+            selected.push(line.feature.properties);
+        }}
+    }});
+
+    // Compute stats
+    if (selected.length > 0) {{
+        var heights = selected.map(s => s.height);
+        var lengths = selected.map(s => s.length);
+
+        var msg = 
+            "<b>Selected lines:</b> " + selected.length + "<br>" +
+            "<b>Height min:</b> " + Math.min(...heights).toFixed(1) + "<br>" +
+            "<b>Height max:</b> " + Math.max(...heights).toFixed(1) + "<br>" +
+            "<b>Length min:</b> " + Math.min(...lengths).toFixed(1) + "<br>" +
+            "<b>Length max:</b> " + Math.max(...lengths).toFixed(1) + "<br>";
+
+        L.popup()
+            .setLatLng(bounds.getCenter())
+            .setContent(msg)
+            .openOn(map);
+    }} else {{
+        L.popup()
+            .setLatLng(bounds.getCenter())
+            .setContent("No lines in selection.")
+            .openOn(map);
+    }}
+}});
 </script>
-
-<div style="
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 999999;
-    background: white;
-    padding: 12px;
-    border: 1px solid #999;
-    border-radius: 4px;
-    width: 240px;
-">
-
-<b>Filter by Length</b><br>
-Min: <span id="lenMinVal">{min_len:.1f}</span>,
-Max: <span id="lenMaxVal">{max_len:.1f}</span><br>
-
-<input type="range" id="lengthMin" min="{min_len}" max="{max_len}" value="{min_len}" step="1"
-  oninput="document.getElementById('lenMinVal').innerHTML=this.value; applyFilters();">
-
-<input type="range" id="lengthMax" min="{min_len}" max="{max_len}" value="{max_len}" step="1"
-  oninput="document.getElementById('lenMaxVal').innerHTML=this.value; applyFilters();">
-
-<br><br>
-
-<b>Filter by Height</b><br>
-Min: <span id="hMinVal">{min_h:.1f}</span>,
-Max: <span id="hMaxVal">{max_h:.1f}</span><br>
-
-<input type="range" id="heightMin" min="{min_h}" max="{max_h}" value="{min_h}" step="1"
-  oninput="document.getElementById('hMinVal').innerHTML=this.value; applyFilters();">
-
-<input type="range" id="heightMax" min="{min_h}" max="{max_h}" value="{max_h}" step="1"
-  oninput="document.getElementById('hMaxVal').innerHTML=this.value; applyFilters();">
-
-</div>
 """
 
-m.get_root().html.add_child(folium.Element(filter_script))
+m.get_root().html.add_child(folium.Element(draw_code))
 
 # -------------------------------------------------------
-# SAVE
+# SAVE OUTPUT
 # -------------------------------------------------------
 m.save(OUTPUT_HTML)
 print("Saved:", OUTPUT_HTML)
