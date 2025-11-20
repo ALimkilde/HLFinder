@@ -11,6 +11,7 @@ import math
 from scipy.ndimage import maximum_filter, zoom
 import pandas as pd
 from cluster_csv import cluster_and_extract
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import re
 
@@ -142,6 +143,31 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
     print(f"✅ Metadata written to {out_file}")
 
 
+def process_task(args):
+    (df, fld, min_hl_length, max_hl_length, H, px_size_m_output,
+     c1_north, c1_east) = args
+
+    # prepare search area
+    search_pic, px_size_m_output = get_search_picture(
+        fld,
+        c1_north,
+        c1_east,
+        max_hl_length,
+        px_size_m_output
+    )
+
+    # run detection
+    _, df_out = search_highline(
+        df,
+        search_pic,
+        px_size_m_output,
+        min_hl_length,
+        max_hl_length,
+        H
+    )
+
+    return df_out
+
 
 
 
@@ -154,8 +180,8 @@ if __name__ == "__main__":
     fld = sys.argv[1]
 
     north_min=6130
-    north_max=6139
-    east_min=710
+    north_max=6189
+    east_min=700
     east_max=719
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
@@ -174,49 +200,46 @@ if __name__ == "__main__":
         {"min_hl_length": 350, "max_hl_length": 500, "H": 30, "pxsize": 15}
     ])
 
-
-    df = create_hl_dataframe()
+    df = create_hl_dataframe()           # read-only in workers
+    tasks = []
+    
     for _, r in ranges.iterrows():
         min_hl_length = r["min_hl_length"]
         max_hl_length = r["max_hl_length"]
         H = r["H"]
         px_size_m_output = r["pxsize"]
-        print(f"Searching: min={min_hl_length}, max={max_hl_length}, H={H}")
-        
+    
         coords = grid.get_highline_coords(H)
-       
-        for c1_north, c1_east in coords:
-        
-            # Produce the search image for this range
-            search_pic, px_size_m_output = get_search_picture(
-                fld, 
-                c1_north, 
-                c1_east, 
-                max_hl_length,      # only depends on the maximum length
-                px_size_m_output
-            )
-        
-            # Run highline search for this range
-            search_pic, df_out = search_highline(
-                df,
-                search_pic,
-                px_size_m_output,
-                min_hl_length,
-                max_hl_length,
-                H
+    
+        for (c1_north, c1_east) in coords:
+            tasks.append(
+                (df, fld,
+                 min_hl_length, max_hl_length, H, px_size_m_output,
+                 c1_north, c1_east)
             )
 
-        # plt.figure()
-        # plt.imshow(search_pic.get_im_marked())
-        # plt.axis("off")  # Hide the axes
-        # plt.title(f"Tile {c1_north},{c1_east}")
 
+    all_results = []                   # we will merge results after
 
+    with ProcessPoolExecutor() as ex:
+        futures = [ex.submit(process_task, t) for t in tasks]
+    
+        total = len(tasks)
+        done = 0
 
-    df.to_csv("all_lines.csv", sep=' ')
+        for fut in as_completed(futures):
+            done += 1
+            print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
+        
+            all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
 
-    clustered_df = cluster_and_extract(df, ranges, radius=50)
-    clustered_df.to_csv("clustered_lines.csv", sep=' ')
+    
+    df = pd.concat(all_results, ignore_index=True)
+    df = cluster_and_extract(df, ranges, radius=50)
+    df.to_csv("new_format.csv", sep=' ')
+
+    # clustered_df = cluster_and_extract(df, ranges, radius=50)
+    # clustered_df.to_csv("clustered_lines.csv", sep=' ')
     # clustered_df.to_csv("clustered_lines.csv", sep=' ', mode='a', header=False, index=False)
 
 

@@ -114,7 +114,7 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     east_max = east + max_hl_length_in_km
 
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
-    print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
+    # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
  
     mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
