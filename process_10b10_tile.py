@@ -1,42 +1,81 @@
 import sys
 import subprocess
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import os
+
+
+def process_tif(tif_file, output_folder):
+    """Process a single .tif file: gdal_translate + gdalinfo."""
+    tif_file = Path(tif_file)
+    base_name = tif_file.stem
+
+    png_path = Path(output_folder) / f"{base_name}.png"
+    info_path = Path(output_folder) / f"{base_name}.info"
+
+    # 1. gdal_translate
+    cmd1 = f"gdal_translate -of PNG {tif_file} {png_path}"
+    subprocess.run(
+        cmd1,
+        shell=True,
+        check=True,
+        stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+    )
+
+    # 2. gdalinfo
+    cmd2 = f"gdalinfo {tif_file} > {info_path}"
+    subprocess.run(
+        cmd2,
+        shell=True,
+        check=True,
+        stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+    )
+
+    return tif_file.name  # Return something small for logging
+
 
 def main():
-    # Check that the user provided a folder path
-    if len(sys.argv) < 2:
-        print("Usage: python run_on_tifs.py <folder_path>")
+    if len(sys.argv) < 3:
+        print("Usage: python run_on_tifs.py <folder_path> <output_folder>")
         sys.exit(1)
 
-    fld = sys.argv[1]
-    print(fld)
-    fld = fld.rstrip('/')
-    print(fld)
-    fld_png = f"{fld}_png/"
-    print(f"mkdir {fld_png}")
-    subprocess.run(f"mkdir {fld_png}", shell=True)
+    input_folder = Path(sys.argv[1])
+    output_folder = Path(sys.argv[2])
 
-    folder = Path(fld)
-
-    if not folder.is_dir():
-        print(f"Error: {folder} is not a valid directory.")
+    if not input_folder.is_dir():
+        print(f"Error: {input_folder} is not a valid directory.")
         sys.exit(1)
 
-    # The bash command you want to run on each .tif file
-    bash_command = f"gdal_translate -of PNG"
+    output_folder.mkdir(parents=True, exist_ok=True)
 
-    # Loop through all .tif files
-    for tif_file in folder.glob("*.tif"):
-        base_name = tif_file.stem  # file name without extension
-        png_name = f"{base_name}.png"
-        print(f"Running command on {base_name}...")
-        cmd = f"{bash_command} {tif_file} {fld_png}/{png_name}"
-        subprocess.run(cmd, shell=True, check=True)
+    tifs = list(input_folder.glob("*.tif"))
+    if not tifs:
+        print("No .tif files found.")
+        return
 
-        cmd = f"gdalinfo {tif_file} > {fld_png}/{base_name}.info"
-        subprocess.run(cmd, shell=True, check=True)
+    # Number of workers — you can tune this
+    workers = os.cpu_count() or 4
+    # print(f"Processing {len(tifs)} TIFF files with {workers} workers...")
 
-    print("✅ Done processing all .tif files.")
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(process_tif, tif, output_folder): tif
+            for tif in tifs
+        }
+
+        for future in as_completed(futures):
+            tif_name = futures[future].name
+            try:
+                future.result()
+                # print(f"✓ {tif_name}")
+            except Exception as e:
+                sys.exit()
+                # print(f"✗ Error processing {tif_name}: {e}")
+                # print(f"✓ {tif_name}")
+
 
 if __name__ == "__main__":
     main()
+
