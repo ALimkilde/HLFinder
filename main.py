@@ -10,7 +10,7 @@ from search_picture import SearchPicture, get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
 import pandas as pd
-from scipy.spatial import KDTree
+from cluster_csv import cluster_and_extract
 
 import re
 
@@ -142,76 +142,20 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
     print(f"✅ Metadata written to {out_file}")
 
 
-def cluster_and_extract(df, radius=100):
-    """
-    Groups rows whose (midx, midy) are within `radius` meters of each other,
-    then returns a dataframe with the longest, shortest, and highest rows
-    from each spatial cluster.
-    """
-
-    coords = df[['midx', 'midy']].values
-    tree = KDTree(coords)
-
-    # Step 1: Find clusters (connected components)
-    n = len(df)
-    visited = np.zeros(n, dtype=bool)
-    clusters = []
-
-    for i in range(n):
-        if visited[i]:
-            continue
-
-        # BFS to collect all neighbors recursively within radius
-        cluster = []
-        queue = [i]
-        visited[i] = True
-
-        while queue:
-            idx = queue.pop()
-            cluster.append(idx)
-
-            # find neighbors within radius
-            neighbors = tree.query_ball_point(coords[idx], r=radius)
-            for nb in neighbors:
-                if not visited[nb]:
-                    visited[nb] = True
-                    queue.append(nb)
-
-        clusters.append(cluster)
-
-    # Step 2: For each cluster, get rows with:
-    #   - max length
-    #   - min length
-    #   - max height
-    result_rows = []
-
-    for cluster in clusters:
-        sub = df.iloc[cluster]
-
-        longest = sub.loc[sub['length'].idxmax()]
-        shortest = sub.loc[sub['length'].idxmin()]
-        highest = sub.loc[sub['height'].idxmax()]
-
-        result_rows.extend([longest, shortest, highest])
-
-    # Step 3: Build result dataframe (remove duplicates)
-    result_df = pd.DataFrame(result_rows).drop_duplicates().reset_index(drop=True)
-    return result_df
 
 
 
 if __name__ == "__main__":
     # Check that the user provided a folder path
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print("two args needed")
         sys.exit(1)
 
     fld = sys.argv[1]
-    H = float(sys.argv[2])
 
     north_min=6130
-    north_max=6189
-    east_min=700
+    north_max=6139
+    east_min=710
     east_max=719
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
@@ -221,20 +165,46 @@ if __name__ == "__main__":
     if (grid == None):
         sys.exit()
 
-    coords = grid.get_highline_coords(H)
-    print(f"coords: {coords}")
+
+    ranges = pd.DataFrame([
+        {"min_hl_length": 0,   "max_hl_length": 50,  "H": 10, "pxsize": 5},
+        {"min_hl_length": 50,  "max_hl_length": 150, "H": 15, "pxsize": 7},
+        {"min_hl_length": 150, "max_hl_length": 250, "H": 20, "pxsize": 10},
+        {"min_hl_length": 200, "max_hl_length": 350, "H": 25, "pxsize": 10},
+        {"min_hl_length": 350, "max_hl_length": 500, "H": 30, "pxsize": 15}
+    ])
+
 
     df = create_hl_dataframe()
-    for c1_north, c1_east in coords:
-        print(f"({c1_north}, {c1_east})")
-
-        min_hl_length = 100
-        max_hl_length = 350
-        px_size_m_output = 10
-        search_pic, px_size_m_output = get_search_picture(fld, c1_north, c1_east, max_hl_length, px_size_m_output)
-
-        search_pic, df = search_highline(df, search_pic, px_size_m_output, min_hl_length, max_hl_length, H)
-
+    for _, r in ranges.iterrows():
+        min_hl_length = r["min_hl_length"]
+        max_hl_length = r["max_hl_length"]
+        H = r["H"]
+        px_size_m_output = r["pxsize"]
+        print(f"Searching: min={min_hl_length}, max={max_hl_length}, H={H}")
+        
+        coords = grid.get_highline_coords(H)
+       
+        for c1_north, c1_east in coords:
+        
+            # Produce the search image for this range
+            search_pic, px_size_m_output = get_search_picture(
+                fld, 
+                c1_north, 
+                c1_east, 
+                max_hl_length,      # only depends on the maximum length
+                px_size_m_output
+            )
+        
+            # Run highline search for this range
+            search_pic, df_out = search_highline(
+                df,
+                search_pic,
+                px_size_m_output,
+                min_hl_length,
+                max_hl_length,
+                H
+            )
 
         # plt.figure()
         # plt.imshow(search_pic.get_im_marked())
@@ -245,8 +215,10 @@ if __name__ == "__main__":
 
     df.to_csv("all_lines.csv", sep=' ')
 
-    clustered_df = cluster_and_extract(df)
+    clustered_df = cluster_and_extract(df, ranges, radius=50)
     clustered_df.to_csv("clustered_lines.csv", sep=' ')
+    # clustered_df.to_csv("clustered_lines.csv", sep=' ', mode='a', header=False, index=False)
+
 
     # plt.show()
 

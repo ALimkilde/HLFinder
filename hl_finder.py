@@ -127,7 +127,6 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
     mask = get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H)
 
     n_extended = math.ceil(max_hl_length/(px_size_m))
-    print(f"n_extended: {n_extended}")
 
     rows, cols = np.where(mask)
 
@@ -161,14 +160,6 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
 
              h_mid = float(im[rm, cm])
              h_min = min(h, h0)
-
-             # print(f"{r},{c}: {h_min}, {h_mid}")
-             if(h_min - h_mid > 58):
-                 print(f"h: {h}")
-                 print(f"h0: {h0}")
-                 print(f"h_min: {h_min}")
-                 print(f"h_mid: {h_mid}")
-
 
              if(h_min > h_mid + H):
                  # print(f"I found a highline with height {h_min - h_mid}")

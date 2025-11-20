@@ -113,18 +113,19 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     east_min = east - max_hl_length_in_km
     east_max = east + max_hl_length_in_km
 
-    print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
+    # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
+    print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
  
     mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
     padding = math.ceil(max_hl_length/2*px_size_m)
     crop_px = tile_size_px - padding
-    print(f"Crop: {crop_px}")
+    # print(f"Crop: {crop_px}")
 
     arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
     
     n = math.floor(px_size_m * px_size_m_output)
-    print(f"n: {n}")
+    # print(f"n: {n}")
     out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
 
     tile_size_m_out = float(final_size_m)
