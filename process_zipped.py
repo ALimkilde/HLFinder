@@ -8,12 +8,13 @@ import subprocess
 from tqdm import tqdm   # pip install tqdm
 
 
-def process_zip(zip_path: Path, output_base: Path):
+def process_zip(zip_path: Path, output_base: Path, mv_path: Path):
     """Extract a zip, run the processing script, delete temp folder."""
     # Create temporary working directory
     workdir = Path(tempfile.mkdtemp())
 
     # Extract zip into the temporary directory
+    print(zip_path)
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(workdir)
 
@@ -31,17 +32,32 @@ def process_zip(zip_path: Path, output_base: Path):
     # Remove temporary directory
     shutil.rmtree(workdir)
 
+    with zipfile.ZipFile(zip_path, 'r') as z:
+       subprocess.run(
+           [
+               "mv",
+               str(z.filename),
+               str(mv_path),
+           ],
+           check=True
+       )
+
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print("Usage: python script.py <DIR>")
         sys.exit(1)
 
     DIR = Path(sys.argv[1])
     ZIPDIR = DIR / "zipped"
+    MVDIR = DIR / "zipped_already_extracted"
 
     if not ZIPDIR.is_dir():
         print(f"Error: {ZIPDIR} does not exist.")
+        sys.exit(1)
+
+    if not MVDIR.is_dir():
+        print(f"Error: {MVDIR} does not exist.")
         sys.exit(1)
 
     zipfiles = sorted(ZIPDIR.glob("*.zip"))
@@ -53,10 +69,10 @@ def main():
 
     print(f"Starting processing of {total} zip files...")
 
-    OUTPUT_DIR = Path("/home/asger/Documents/Privat/slackline/hlfinder/all_denmark/")
+    OUTPUT_DIR = Path(sys.argv[2])
 
     for zipfile_path in tqdm(zipfiles, desc="Processing zips", unit="zip"):
-        process_zip(zipfile_path, OUTPUT_DIR)
+        process_zip(zipfile_path, OUTPUT_DIR, MVDIR)
 
     print("Done.")
 

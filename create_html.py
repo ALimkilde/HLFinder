@@ -27,6 +27,27 @@ df = pd.read_csv(CSV_FILE, sep=" ")
 
 # Create color scale by height
 min_h, max_h = df["height"].min(), df["height"].max()
+max_h = min(max_h, 60)
+
+slope_max = 0.25
+slope_min = 100
+for _, row in df.iterrows():
+    slope = row["height"]/row["length"]
+    slope_min = min(slope_min, slope)
+
+print(f"slope_max: {slope_max}")
+print(f"slope_min: {slope_min}")
+
+def slope_color(h,l):
+    s = h/l
+    t = (s - slope_min) / (slope_max - slope_min + 1e-9)
+    print(f"s: {s}")
+    print(f"t: {t}")
+    # blue → red gradient
+    r = int(255 * t)
+    b = int(255 * (1 - t))
+    print(f"rgb({r},0,{b})")
+    return f"rgb({r},0,{b})"
 
 def height_color(h):
     t = (h - min_h) / (max_h - min_h + 1e-9)
@@ -68,7 +89,7 @@ for _, row in df.iterrows():
             "midy": float(row["midy"]),
             "length": float(row["length"]),
             "height": float(row["height"]),
-            "color": height_color(row["height"]),
+            "color": slope_color(row["height"],row["length"]),
             "popup": popup_html
         },
         "geometry": {
@@ -120,6 +141,19 @@ var lineLayers = [];
 
 gjLayer.eachLayer(function(layer) {{
     lineLayers.push(layer);
+}});
+
+// Increase hit area for each line without changing visible width
+lineLayers.forEach(function(layer) {{
+    layer.options.weight = 22;       // large hitbox
+    layer.options.opacity = 0;       // make the big stroke invisible
+    layer.options.interactive = true;
+
+    // Add a thinner visible line on top
+    layer.setStyle({{
+        weight: 3,                   // visible width
+        opacity: 1,                  // visible opacity
+    }});
 }});
 
 // Add Leaflet Draw control

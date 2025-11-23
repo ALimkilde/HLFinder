@@ -75,8 +75,9 @@ class Grid:
                 max_vals[row, col] = max_val
 
         if not tiles_found:
-            print("⚠️ No .info tiles found in the given bounds.")
-            return None
+            # print("⚠️ No .info tiles found in the given bounds.")
+            max_vals[:] = 10000;
+            min_vals[:] = 0;
 
         return cls(north_min, north_max, east_min, east_max, min_vals, max_vals)
 

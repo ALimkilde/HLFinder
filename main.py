@@ -179,13 +179,15 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6090
-    north_max=6109
-    east_min=710
-    east_max=729
+    north_min=6120
+    north_max=6169
+    east_min=570
+    east_max=619
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
-    write_meta_data_tiles(fld, north_min, north_max, east_min, east_max, tile_size_km, tile_px)
+    # tile_size_km=1
+    # tile_px=2500
+    # write_meta_data_tiles(fld, north_min, north_max, east_min, east_max, tile_size_km, tile_px)
     grid = Grid.from_info_files(fld,north_min, north_max, east_min, east_max)
 
     if (grid == None):
@@ -236,7 +238,7 @@ if __name__ == "__main__":
     
     df = pd.concat(all_results, ignore_index=True)
     df = cluster_and_extract(df, ranges, radius=50)
-    df.to_csv("around_mon.csv", sep=' ')
+    df.to_csv("fyn_north.csv", sep=' ')
 
     # clustered_df = cluster_and_extract(df, ranges, radius=50)
     # clustered_df.to_csv("clustered_lines.csv", sep=' ')

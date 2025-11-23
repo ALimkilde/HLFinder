@@ -62,6 +62,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
         np.ndarray or None: The combined 2D array (grayscale values)
     """
 
+    # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
+
     folder = Path(folder_path)
 
     # Calculate output dimensions
@@ -79,6 +81,7 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
         for east in range(east_min, east_max + 1):
             filename = f"DTM_{tile_size_km}km_{north}_{east}.png"
             path = folder / filename
+            # print(f"search for {path}")
             if not path.exists():
                 continue
 
