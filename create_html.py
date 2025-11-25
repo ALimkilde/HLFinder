@@ -29,28 +29,37 @@ df = pd.read_csv(CSV_FILE, sep=" ")
 min_h, max_h = df["height"].min(), df["height"].max()
 max_h = min(max_h, 60)
 
-slope_max = 0.25
-slope_min = 100
-for _, row in df.iterrows():
-    slope = row["height"]/row["length"]
-    slope_min = min(slope_min, slope)
+min_score, max_score = df["score"].min(), df["score"].max()
 
-print(f"slope_max: {slope_max}")
-print(f"slope_min: {slope_min}")
+i = 0
+for _, row in df.iterrows():
+    i += 1
+
+print(f"N lines found: {i}")
+
+# print(f"slope_max: {slope_max}")
+# print(f"slope_min: {slope_min}")
 
 def slope_color(h,l):
     s = h/l
     t = (s - slope_min) / (slope_max - slope_min + 1e-9)
-    print(f"s: {s}")
-    print(f"t: {t}")
+    # print(f"s: {s}")
+    # print(f"t: {t}")
     # blue → red gradient
     r = int(255 * t)
     b = int(255 * (1 - t))
-    print(f"rgb({r},0,{b})")
+    # print(f"rgb({r},0,{b})")
     return f"rgb({r},0,{b})"
 
 def height_color(h):
     t = (h - min_h) / (max_h - min_h + 1e-9)
+    # blue → red gradient
+    r = int(255 * t)
+    b = int(255 * (1 - t))
+    return f"rgb({r},0,{b})"
+
+def score_color(s):
+    t = (s - min_score) / (max_score - min_score + 1e-9)
     # blue → red gradient
     r = int(255 * t)
     b = int(255 * (1 - t))
@@ -89,7 +98,7 @@ for _, row in df.iterrows():
             "midy": float(row["midy"]),
             "length": float(row["length"]),
             "height": float(row["height"]),
-            "color": slope_color(row["height"],row["length"]),
+            "color": score_color(row["score"]),
             "popup": popup_html
         },
         "geometry": {

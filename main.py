@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 from grid import Grid
-from hl_finder import pixel_slope_gaussian, pixel_slope_sobel_physical, search_highline, create_hl_dataframe
+from hl_finder import search_highline, create_hl_dataframe, hlheight
 from search_picture import SearchPicture, get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
@@ -145,13 +145,13 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
 
 def process_task(args):
     (df, fld, min_hl_length, max_hl_length, H, px_size_m_output,
-     c1_north, c1_east) = args
+     c_north, c_east) = args
 
     # prepare search area
     search_pic, px_size_m_output = get_search_picture(
         fld,
-        c1_north,
-        c1_east,
+        c_north,
+        c_east,
         max_hl_length,
         px_size_m_output
     )
@@ -181,10 +181,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6250
-    north_max=6299
-    east_min=480
-    east_max=519
+    north_min=6096
+    north_max=6096
+    east_min=724
+    east_max=724
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -197,11 +197,12 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 0,   "max_hl_length": 50,  "H": 10, "pxsize": 5},
-        {"min_hl_length": 50,  "max_hl_length": 150, "H": 15, "pxsize": 7},
-        {"min_hl_length": 150, "max_hl_length": 250, "H": 20, "pxsize": 10},
-        {"min_hl_length": 200, "max_hl_length": 350, "H": 25, "pxsize": 10},
-        {"min_hl_length": 350, "max_hl_length": 500, "H": 30, "pxsize": 15}
+        {"min_hl_length": 30 , "max_hl_length": 50,  "H": hlheight(30), "pxsize": 5},
+        {"min_hl_length": 50 , "max_hl_length": 100, "H": hlheight(50), "pxsize": 7},
+        {"min_hl_length": 100, "max_hl_length": 150, "H": hlheight(100), "pxsize": 7},
+        {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 10},
+        {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 10},
+        {"min_hl_length": 350, "max_hl_length": 500, "H": hlheight(350), "pxsize": 15}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -215,11 +216,11 @@ if __name__ == "__main__":
     
         coords = grid.get_highline_coords(H)
     
-        for (c1_north, c1_east) in coords:
+        for (c_north, c_east) in coords:
             tasks.append(
                 (df, fld,
                  min_hl_length, max_hl_length, H, px_size_m_output,
-                 c1_north, c1_east)
+                 c_north, c_east)
             )
 
 
@@ -236,12 +237,13 @@ if __name__ == "__main__":
             print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
         
             if (fut.result() is not None):
-                all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
+                # all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
+                all_results.append(fut.result())
 
     
     df = pd.concat(all_results, ignore_index=True)
-    df = cluster_and_extract(df, ranges, radius=50)
-    df.to_csv("around_skive.csv", sep=' ')
+    # df = cluster_and_extract(df, ranges, radius=50)
+    df.to_csv("tmp.csv", sep=' ')
 
     # clustered_df = cluster_and_extract(df, ranges, radius=50)
     # clustered_df.to_csv("clustered_lines.csv", sep=' ')
