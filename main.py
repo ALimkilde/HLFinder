@@ -155,6 +155,8 @@ def process_task(args):
         max_hl_length,
         px_size_m_output
     )
+    if search_pic == None:
+        return None
 
     # run detection
     _, df_out = search_highline(
@@ -179,10 +181,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6120
-    north_max=6169
-    east_min=570
-    east_max=619
+    north_min=6250
+    north_max=6299
+    east_min=480
+    east_max=519
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -233,12 +235,13 @@ if __name__ == "__main__":
             done += 1
             print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
         
-            all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
+            if (fut.result() is not None):
+                all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
 
     
     df = pd.concat(all_results, ignore_index=True)
     df = cluster_and_extract(df, ranges, radius=50)
-    df.to_csv("fyn_north.csv", sep=' ')
+    df.to_csv("around_skive.csv", sep=' ')
 
     # clustered_df = cluster_and_extract(df, ranges, radius=50)
     # clustered_df.to_csv("clustered_lines.csv", sep=' ')

@@ -121,6 +121,9 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
  
     mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
+    if mosaic is None:
+        return None, None
+
     padding = math.ceil(max_hl_length/2*px_size_m)
     crop_px = tile_size_px - padding
     # print(f"Crop: {crop_px}")
