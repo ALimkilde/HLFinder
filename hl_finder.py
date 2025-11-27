@@ -6,8 +6,7 @@ from pathlib import Path
 import numpy as np
 from grid import Grid
 import math
-from scipy.ndimage import maximum_filter, zoom, sobel
-from scipy.ndimage import maximum_filter, minimum_filter, gaussian_gradient_magnitude
+from scipy.ndimage import maximum_filter, minimum_filter
 import pandas as pd
 
 import re
@@ -108,15 +107,19 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
              if(h_min > h_mid + hgoal):
                  # print(f"I found a highline with height {h_min - h_mid}")
                  # print(f"min_h: {min(h,h0)}, h0: {h0}, h: {h}, h_mid: {h_mid}")
-                 df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - h_mid - hgoal)
-                 search_pic.mark(rm, cm)
-                 search_pic.mark(r0, c0)
-                 search_pic.mark(r, c)
+                 tree_in_way, htree = search_pic.tree_in_the_way(rm, cm, r0, c0, r, c, hgoal, h_min, h_mid)
+
+                 htree = max(htree, h_mid)
+                 if (not tree_in_way):
+                     df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
+                     search_pic.mark(rm, cm)
+                     search_pic.mark(r0, c0)
+                     search_pic.mark(r, c)
           
 
     return search_pic, df
 
-def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, height, length, hmid, ha1, ha2, score):
+def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, height, length, hmid, ha1, ha2, score, htree):
 
     midx, midy = search_pic.get_coords(pxmidx, pxmidy)
     a1x, a1y = search_pic.get_coords(pxa1x, pxa1y)
@@ -134,7 +137,8 @@ def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, hei
         "hmid": hmid,
         "ha1" : ha1,
         "ha2" : ha2,
-        "score" : score
+        "score" : score,
+        "htree" : htree
 
     }
 
@@ -157,7 +161,8 @@ def create_hl_dataframe():
         "hmid",
         "ha1",
         "ha2",
-        "score"
+        "score",
+        "htree"
     ])
     return df
 

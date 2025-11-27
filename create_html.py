@@ -8,6 +8,7 @@ import sys
 # -------------------------------------------------------
 CSV_FILE = sys.argv[1]
 OUTPUT_HTML = sys.argv[2]
+MIN_SCORE = float(sys.argv[3])
 UTM_ZONE = 32
 HEMISPHERE = "north"
 # -------------------------------------------------------
@@ -30,9 +31,13 @@ min_h, max_h = df["height"].min(), df["height"].max()
 max_h = min(max_h, 60)
 
 min_score, max_score = df["score"].min(), df["score"].max()
+min_score = max(min_score, 0)
+max_score = min(max_score, 10)
 
 i = 0
 for _, row in df.iterrows():
+    if (row["score"] < MIN_SCORE):
+        continue
     i += 1
 
 print(f"N lines found: {i}")
@@ -71,6 +76,8 @@ def score_color(s):
 features = []
 
 for _, row in df.iterrows():
+    if (row["score"] < MIN_SCORE):
+        continue
 
     # Convert endpoints
     lat1, lon1 = utm_to_latlon(row["a1x"], row["a1y"])
@@ -86,7 +93,9 @@ for _, row in df.iterrows():
 {row['midx']} {row['midy']}<br><br>
 
     <b>Length:</b> {row['length']:.1f}<br>
-    <b>Height:</b> {row['height']:.1f}<br><br>
+    <b>Height:</b> {row['height']:.1f}<br>
+    <b>Height over trees:</b> {row['htree']:.1f}<br>
+    <b>score:</b> {row['score']:.1f}<br><br>
 
     <a href='{google_link}' target='_blank'>Open in Google Maps</a>
     """
@@ -98,6 +107,7 @@ for _, row in df.iterrows():
             "midy": float(row["midy"]),
             "length": float(row["length"]),
             "height": float(row["height"]),
+            "htree": float(row["htree"]),
             "color": score_color(row["score"]),
             "popup": popup_html
         },
@@ -125,7 +135,7 @@ gj = folium.GeoJson(
     name="Lines",
     style_function=lambda f: {
         "color": f["properties"]["color"],
-        "weight": 3,
+        "weight": 7,
         "opacity": 0.9,
     },
     tooltip=folium.GeoJsonTooltip(fields=["midx", "midy"]),
@@ -150,19 +160,6 @@ var lineLayers = [];
 
 gjLayer.eachLayer(function(layer) {{
     lineLayers.push(layer);
-}});
-
-// Increase hit area for each line without changing visible width
-lineLayers.forEach(function(layer) {{
-    layer.options.weight = 22;       // large hitbox
-    layer.options.opacity = 0;       // make the big stroke invisible
-    layer.options.interactive = true;
-
-    // Add a thinner visible line on top
-    layer.setStyle({{
-        weight: 3,                   // visible width
-        opacity: 1,                  // visible opacity
-    }});
 }});
 
 // Add Leaflet Draw control

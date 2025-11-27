@@ -14,6 +14,7 @@ def process_zip(zip_path: Path, output_base: Path, mv_path: Path):
     workdir = Path(tempfile.mkdtemp())
 
     # Extract zip into the temporary directory
+    # print(zip_path)
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(workdir)
 

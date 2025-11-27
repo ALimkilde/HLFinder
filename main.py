@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from grid import Grid
 from hl_finder import search_highline, create_hl_dataframe, hlheight
-from search_picture import SearchPicture, get_search_picture
+from search_picture import get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
 import pandas as pd
@@ -181,10 +181,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6096
-    north_max=6096
-    east_min=724
-    east_max=724
+    north_min=6080
+    north_max=6229
+    east_min=550
+    east_max=749
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -237,13 +237,13 @@ if __name__ == "__main__":
             print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
         
             if (fut.result() is not None):
-                # all_results.append(cluster_and_extract(fut.result(), ranges, radius=50))
+                all_results.append(cluster_and_extract(fut.result(), ranges, radius=20))
                 all_results.append(fut.result())
 
     
     df = pd.concat(all_results, ignore_index=True)
-    # df = cluster_and_extract(df, ranges, radius=50)
-    df.to_csv("tmp.csv", sep=' ')
+    df = cluster_and_extract(df, ranges, radius=20)
+    df.to_csv("zealand_and_fyn_w_score.csv", sep=' ')
 
     # clustered_df = cluster_and_extract(df, ranges, radius=50)
     # clustered_df.to_csv("clustered_lines.csv", sep=' ')

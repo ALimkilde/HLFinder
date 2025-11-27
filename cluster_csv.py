@@ -54,7 +54,7 @@ def cluster_and_extract(df, ranges, radius=100):
                 continue  # no row in this cluster fits in the range
 
             # pick highest
-            highest = sub_range.loc[sub_range["height"].idxmax()]
+            highest = sub_range.loc[sub_range["score"].idxmax()]
             result_rows.append(highest)
 
     # ----- Step 3: Build result dataframe -----

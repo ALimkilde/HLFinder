@@ -4,11 +4,16 @@ import math
 from pathlib import Path
 from PIL import Image
 import sys
+from scipy.ndimage import maximum_filter, minimum_filter
 
 
 class SearchPicture:
-    def __init__(self, im, ref_px, ref_coords, px_size_m, tile_size_m):
+    def __init__(self, im, im_surf, ref_px, ref_coords, px_size_m, tile_size_m):
         self.im = im
+
+        self.im_surf = im_surf
+        self.has_surf_data = (self.im_surf is not None)
+
         self.ref_px = ref_px
         self.ref_coords = np.array(ref_coords)*1000
         self.px_size_m = px_size_m
@@ -17,6 +22,35 @@ class SearchPicture:
         # Internals
         self.im_marked = im.copy()
         self.mark_val = 70
+
+    def tree_in_the_way(self, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
+        if (not self.has_surf_data):
+            # print("No surf data; tree not in the way...")
+            return False, h_mid
+
+        out = False
+
+        h_tree = self.im_surf[rm, cm]
+        out = (not h_min > h_tree + hgoal) or out
+        if (out):
+            # print(f"On RM, CM: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+            return out, h_tree
+
+        rm4, cm4 = round((rm+r0)/2), round((cm+c0)/2)
+        h_tree = self.im_surf[rm4, cm4]
+        out = (not h_min > h_tree + (hgoal - 8)/2) or out
+        if (out):
+            # print(f"On RM41, CM41: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+            return out, h_tree
+
+        rm4, cm4 = round((rm+r)/2), round((cm+c)/2)
+        h_tree = self.im_surf[rm4, cm4]
+        out = (not h_min > h_tree + (hgoal-8)/2) or out
+        if (out):
+            # print(f"On RM42, CM42: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+            return out, h_tree
+    
+        return out, h_tree
 
 
     def get_im(self):
@@ -79,7 +113,7 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
 
     for north in range(north_min, north_max + 1):
         for east in range(east_min, east_max + 1):
-            filename = f"DTM_{tile_size_km}km_{north}_{east}.png"
+            filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
             path = folder / filename
             # print(f"search for {path}")
             if not path.exists():
@@ -99,10 +133,56 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             mosaic[y0:y0 + tile_px, x0:x0 + tile_px] = img
 
     if not tiles_found:
-        print("⚠️ No tiles found in the given bounds.")
-        return None
+        # print("⚠️ No tiles found in the given bounds.")
+        return None, None
 
-    return mosaic
+    mosaic_surface = mosaic.copy()
+    tiles_found = False
+
+    # Look for Surface data
+    for north in range(north_min, north_max + 1):
+        for east in range(east_min, east_max + 1):
+            filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
+            path = folder / filename
+            # print(f"search for {path}")
+            if not path.exists():
+                continue
+
+            # print(f"Found surface data: {filename}")
+
+            tiles_found = True
+
+            # Read tile as grayscale NumPy array
+            img = np.array(Image.open(path).convert("L"))
+
+            # Compute placement in output
+            col = east - east_min
+            row = north_max - north  # north decreases downward
+            y0 = row * tile_px
+            x0 = col * tile_px
+
+            mosaic_surface[y0:y0 + tile_px, x0:x0 + tile_px] = img
+
+    if not tiles_found:
+        mosaic_surface = None
+
+    return mosaic, mosaic_surface
+
+def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
+    if (mosaic is None):
+        return None, None 
+
+    arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
+    
+    n = math.floor(px_size_m * px_size_m_output)
+    # print(f"n: {n}")
+    if (filt == 'max'):
+        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
+    else:
+        arr = maximum_filter(arr, size=(10, 10), mode='nearest')
+        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).min(axis=(1,3))
+
+    return out, n
 
 def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
 
@@ -119,7 +199,7 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
     # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
  
-    mosaic = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
+    mosaic, mosaic_surface = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
     if mosaic is None:
         return None, None
@@ -128,11 +208,9 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     crop_px = tile_size_px - padding
     # print(f"Crop: {crop_px}")
 
-    arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
-    
-    n = math.floor(px_size_m * px_size_m_output)
-    # print(f"n: {n}")
-    out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
+    out, n = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
+
+    out_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
 
     tile_size_m_out = float(final_size_m)
     refpx_y = math.floor(padding/n) 
@@ -141,6 +219,6 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     nout,mout = out.shape
 
     true_px_size_m = tile_size_m_out/nout
-    out = SearchPicture(out,(refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
+    sp = SearchPicture(out, out_surface, (refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
     
-    return out, true_px_size_m
+    return sp, true_px_size_m
