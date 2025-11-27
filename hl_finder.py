@@ -8,9 +8,12 @@ from grid import Grid
 import math
 from scipy.ndimage import maximum_filter, minimum_filter
 import pandas as pd
+from search_picture import tree_in_the_way, get_distance_px_to_m
+from numba import njit
 
 import re
 
+@njit
 def hlheight(l):
     return 0.08 * l + 8
 
@@ -62,13 +65,13 @@ def get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H):
 
     return mask
 
-def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
+@njit
+def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mask):
 
-    nx, ny = search_pic.shape()
-    im = search_pic.get_im()
+    result = []
+
+    nx, ny = im.shape
     
-    mask = get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H)
-
     n_extended = math.ceil(max_hl_length/(px_size_m))
 
     rows, cols = np.where(mask)
@@ -85,7 +88,7 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
          R, C = np.where(mask[r0:rmax, cmin:cmax])
 
          for (r,c) in zip(R + r0,C + cmin):
-             l = search_pic.get_distance_px_to_m(r0,c0,r,c)
+             l = get_distance_px_to_m(px_size_m,r0,c0,r,c)
              if (l<min_hl_length):
                  continue
 
@@ -107,62 +110,13 @@ def search_highline(df, search_pic, px_size_m, min_hl_length, max_hl_length, H):
              if(h_min > h_mid + hgoal):
                  # print(f"I found a highline with height {h_min - h_mid}")
                  # print(f"min_h: {min(h,h0)}, h0: {h0}, h: {h}, h_mid: {h_mid}")
-                 tree_in_way, htree = search_pic.tree_in_the_way(rm, cm, r0, c0, r, c, hgoal, h_min, h_mid)
+                 tree_in_way, htree = tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid)
 
                  htree = max(htree, h_mid)
                  if (not tree_in_way):
-                     df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
-                     search_pic.mark(rm, cm)
-                     search_pic.mark(r0, c0)
-                     search_pic.mark(r, c)
+                     result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal))
           
 
-    return search_pic, df
+    return result
 
-def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, height, length, hmid, ha1, ha2, score, htree):
-
-    midx, midy = search_pic.get_coords(pxmidx, pxmidy)
-    a1x, a1y = search_pic.get_coords(pxa1x, pxa1y)
-    a2x, a2y = search_pic.get_coords(pxa2x, pxa2y)
-
-    new_row = {
-        "midx": midx,    # pixel index (x)
-        "midy": midy,    # pixel index (y)
-        "a1x": a1x,    # pixel index (x)
-        "a1y": a1y,    # pixel index (y)
-        "a2x": a2x,    # pixel index (x)
-        "a2y": a2y,    # pixel index (y)
-        "length": length,
-        "height": height,
-        "hmid": hmid,
-        "ha1" : ha1,
-        "ha2" : ha2,
-        "score" : score,
-        "htree" : htree
-
-    }
-
-    df.loc[len(df)] = new_row
-    return df
-
-def create_hl_dataframe():
-    """
-    Create an empty dataframe for storing tile attributes.
-    """
-    df = pd.DataFrame(columns=[
-        "midx", 
-        "midy",  
-        "a1x",  
-        "a1y",   
-        "a2x",   
-        "a2y",   
-        "length",
-        "height",
-        "hmid",
-        "ha1",
-        "ha2",
-        "score",
-        "htree"
-    ])
-    return df
 

@@ -1,11 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import math
-from pathlib import Path
-from PIL import Image
+import os
+# from PIL import Image
+import cv2
 import sys
 from scipy.ndimage import maximum_filter, minimum_filter
-
+from numba import njit
 
 class SearchPicture:
     def __init__(self, im, im_surf, ref_px, ref_coords, px_size_m, tile_size_m):
@@ -23,34 +24,6 @@ class SearchPicture:
         self.im_marked = im.copy()
         self.mark_val = 70
 
-    def tree_in_the_way(self, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
-        if (not self.has_surf_data):
-            # print("No surf data; tree not in the way...")
-            return False, h_mid
-
-        out = False
-
-        h_tree = self.im_surf[rm, cm]
-        out = (not h_min > h_tree + hgoal) or out
-        if (out):
-            # print(f"On RM, CM: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-            return out, h_tree
-
-        rm4, cm4 = round((rm+r0)/2), round((cm+c0)/2)
-        h_tree = self.im_surf[rm4, cm4]
-        out = (not h_min > h_tree + (hgoal - 8)/2) or out
-        if (out):
-            # print(f"On RM41, CM41: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-            return out, h_tree
-
-        rm4, cm4 = round((rm+r)/2), round((cm+c)/2)
-        h_tree = self.im_surf[rm4, cm4]
-        out = (not h_min > h_tree + (hgoal-8)/2) or out
-        if (out):
-            # print(f"On RM42, CM42: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-            return out, h_tree
-    
-        return out, h_tree
 
 
     def get_im(self):
@@ -73,13 +46,6 @@ class SearchPicture:
         new_coor = np.add(self.ref_coords,diff*self.px_size_m)
         return tuple(new_coor)
 
-    def get_distance_px_to_m(self, x1, y1, x2, y2):
-        diff = np.subtract((x1,y1), (x2,y2))
-        dist = np.linalg.norm(diff)
-
-        return dist*self.px_size_m
-
-
 def combine_tiles(folder_path, north_min, north_max, east_min, east_max, 
                   tile_size_km=1, tile_px=2500):
     """
@@ -98,8 +64,6 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
 
     # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
 
-    folder = Path(folder_path)
-
     # Calculate output dimensions
     n_rows = north_max - north_min + 1
     n_cols = east_max - east_min + 1
@@ -114,15 +78,16 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     for north in range(north_min, north_max + 1):
         for east in range(east_min, east_max + 1):
             filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
-            path = folder / filename
+            path = f"{folder_path}/{filename}"
             # print(f"search for {path}")
-            if not path.exists():
+            if not os.path.isdir(folder_path):
                 continue
 
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = np.array(Image.open(path).convert("L"))
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+
 
             # Compute placement in output
             col = east - east_min
@@ -143,9 +108,9 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     for north in range(north_min, north_max + 1):
         for east in range(east_min, east_max + 1):
             filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
-            path = folder / filename
+            path = f"{folder_path}/{filename}"
             # print(f"search for {path}")
-            if not path.exists():
+            if not os.path.isdir(folder_path):
                 continue
 
             # print(f"Found surface data: {filename}")
@@ -153,7 +118,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = np.array(Image.open(path).convert("L"))
+            # img = np.array(Image.open(path).convert("L"))
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
 
             # Compute placement in output
             col = east - east_min
@@ -179,7 +145,7 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
     if (filt == 'max'):
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
     else:
-        arr = maximum_filter(arr, size=(10, 10), mode='nearest')
+        arr = maximum_filter(arr, size=(2, 2), mode='nearest')
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).min(axis=(1,3))
 
     return out, n
@@ -222,3 +188,40 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     sp = SearchPicture(out, out_surface, (refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
     
     return sp, true_px_size_m
+
+@njit
+def tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
+    if (im_surf is None):
+        # print("No surf data; tree not in the way...")
+        return False, h_mid
+
+    out = False
+
+    h_tree = im_surf[rm, cm]
+    out = (not h_min > h_tree + hgoal) or out
+    if (out):
+        # print(f"On RM, CM: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+        return out, h_tree
+
+    rm4, cm4 = round((rm+r0)/2), round((cm+c0)/2)
+    h_tree = im_surf[rm4, cm4]
+    out = (not h_min > h_tree + (hgoal - 8)/2) or out
+    if (out):
+        # print(f"On RM41, CM41: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+        return out, h_tree
+
+    rm4, cm4 = round((rm+r)/2), round((cm+c)/2)
+    h_tree = im_surf[rm4, cm4]
+    out = (not h_min > h_tree + (hgoal-8)/2) or out
+    if (out):
+        # print(f"On RM42, CM42: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
+        return out, h_tree
+
+    return out, h_tree
+
+
+@njit
+def get_distance_px_to_m(px_size_m, x1, y1, x2, y2):
+    dist = math.sqrt((x1-x2)**2 + (y1-y2)**2)
+
+    return dist*px_size_m

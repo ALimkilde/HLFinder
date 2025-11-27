@@ -5,13 +5,14 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 from grid import Grid
-from hl_finder import search_highline, create_hl_dataframe, hlheight
+from hl_finder import search_highline, hlheight, get_highline_mask
 from search_picture import get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
 import pandas as pd
 from cluster_csv import cluster_and_extract
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from create_html import save_HL_map
+from numba import jit
 
 import re
 
@@ -143,6 +144,53 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
     print(f"✅ Metadata written to {out_file}")
 
 
+def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, height, length, hmid, ha1, ha2, score, htree):
+
+    midx, midy = search_pic.get_coords(pxmidx, pxmidy)
+    a1x, a1y = search_pic.get_coords(pxa1x, pxa1y)
+    a2x, a2y = search_pic.get_coords(pxa2x, pxa2y)
+
+    new_row = {
+        "midx": midx,    # pixel index (x)
+        "midy": midy,    # pixel index (y)
+        "a1x": a1x,    # pixel index (x)
+        "a1y": a1y,    # pixel index (y)
+        "a2x": a2x,    # pixel index (x)
+        "a2y": a2y,    # pixel index (y)
+        "length": length,
+        "height": height,
+        "hmid": hmid,
+        "ha1" : ha1,
+        "ha2" : ha2,
+        "score" : score,
+        "htree" : htree
+
+    }
+
+    df.loc[len(df)] = new_row
+    return df
+
+def create_hl_dataframe():
+    """
+    Create an empty dataframe for storing tile attributes.
+    """
+    df = pd.DataFrame(columns=[
+        "midx", 
+        "midy",  
+        "a1x",  
+        "a1y",   
+        "a2x",   
+        "a2y",   
+        "length",
+        "height",
+        "hmid",
+        "ha1",
+        "ha2",
+        "score",
+        "htree"
+    ])
+    return df
+
 def process_task(args):
     (df, fld, min_hl_length, max_hl_length, H, px_size_m_output,
      c_north, c_east) = args
@@ -158,18 +206,65 @@ def process_task(args):
     if search_pic == None:
         return None
 
+    mask = get_highline_mask(search_pic.im, px_size_m_output, min_hl_length, max_hl_length, H)
+
     # run detection
-    _, df_out = search_highline(
-        df,
-        search_pic,
+    result = search_highline(
+        search_pic.im,
+        search_pic.im_surf,
         px_size_m_output,
         min_hl_length,
         max_hl_length,
-        H
+        H,
+        mask
     )
 
-    return df_out
+    for r in result:
+        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
 
+        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
+
+        search_pic.mark(rm, cm)
+        search_pic.mark(r0, c0)
+        search_pic.mark(r, c)
+
+    return df
+
+
+def run_tasks(tasks, ranges, use_parallel=True):
+    all_results = []
+
+    if use_parallel:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        with ProcessPoolExecutor() as ex:
+            futures = [ex.submit(process_task, t) for t in tasks]
+
+            total = len(tasks)
+            done = 0
+
+            for fut in as_completed(futures):
+                done += 1
+                print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
+
+                result = fut.result()
+                if result is not None:
+                    # all_results.append(cluster_and_extract(result, ranges, radius=20))
+                    all_results.append(result)
+
+    else:
+        # Sequential mode
+        total = len(tasks)
+        for i, t in enumerate(tasks, 1):
+            result = process_task(t)
+            print(f"\rProgress: {i}/{total} [{'#' * int(40*i/total):<40}] {100*i/total:5.1f}%", end="")
+
+            if result is not None:
+                # all_results.append(cluster_and_extract(result, ranges, radius=20))
+                all_results.append(result)
+
+    print()  # finish progress line
+    return all_results
 
 
 
@@ -181,10 +276,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6080
-    north_max=6229
-    east_min=550
-    east_max=749
+    north_min=6217
+    north_max=6217
+    east_min=542
+    east_max=542
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -197,12 +292,12 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 30 , "max_hl_length": 50,  "H": hlheight(30), "pxsize": 5},
-        {"min_hl_length": 50 , "max_hl_length": 100, "H": hlheight(50), "pxsize": 7},
-        {"min_hl_length": 100, "max_hl_length": 150, "H": hlheight(100), "pxsize": 7},
-        {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 10},
-        {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 10},
-        {"min_hl_length": 350, "max_hl_length": 500, "H": hlheight(350), "pxsize": 15}
+        # {"min_hl_length": 30 , "max_hl_length": 50,  "H": hlheight(30), "pxsize": 5},
+        # {"min_hl_length": 50 , "max_hl_length": 100, "H": hlheight(50), "pxsize": 5},
+        # {"min_hl_length": 100, "max_hl_length": 150, "H": hlheight(100), "pxsize": 5},
+        # {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 5},
+        # {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 5},
+        {"min_hl_length": 350, "max_hl_length": 500, "H": hlheight(350), "pxsize": 5}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -224,50 +319,13 @@ if __name__ == "__main__":
             )
 
 
-    all_results = []                   # we will merge results after
-
-    with ProcessPoolExecutor() as ex:
-        futures = [ex.submit(process_task, t) for t in tasks]
-    
-        total = len(tasks)
-        done = 0
-
-        for fut in as_completed(futures):
-            done += 1
-            print(f"\rProgress: {done}/{total} [{'#' * int(40*done/total):<40}] {100*done/total:5.1f}%", end="")
-        
-            if (fut.result() is not None):
-                all_results.append(cluster_and_extract(fut.result(), ranges, radius=20))
-                all_results.append(fut.result())
+    all_results = run_tasks(tasks, ranges, use_parallel=False)
 
     
     df = pd.concat(all_results, ignore_index=True)
     df = cluster_and_extract(df, ranges, radius=20)
-    df.to_csv("zealand_and_fyn_w_score.csv", sep=' ')
-
-    # clustered_df = cluster_and_extract(df, ranges, radius=50)
-    # clustered_df.to_csv("clustered_lines.csv", sep=' ')
-    # clustered_df.to_csv("clustered_lines.csv", sep=' ', mode='a', header=False, index=False)
-
-
-    # plt.show()
-
-    # print(min_grid)
-    # print(max_grid)
-
-    # out_file = f"data_{north_min}_{north_max}_{east_min}_{east_max}.png"
-
-    # if mosaic is not None:
-    #     print("Combined array shape:", mosaic.shape)
-    #     Image.fromarray(mosaic).save(out_file)
-
-    # plot_image(f".png")
-    # selected_images = filter_info_files(fld, float(H))
-
-    # for img in selected_images:
-    #     plot_image(f"{fld}/{img}.png")
-    
-    # plt.show()
+    df.to_csv("tmp.csv", sep=' ')
+    save_HL_map(df, "tmp.html")
 
 
 
