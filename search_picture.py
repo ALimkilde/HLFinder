@@ -203,14 +203,14 @@ def tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
         # print(f"On RM, CM: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
         return out, h_tree
 
-    rm4, cm4 = round((rm+r0)/2), round((cm+c0)/2)
+    rm4, cm4 = (rm+r0)//2, (cm+c0)//2
     h_tree = im_surf[rm4, cm4]
     out = (not h_min > h_tree + (hgoal - 8)/2) or out
     if (out):
         # print(f"On RM41, CM41: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
         return out, h_tree
 
-    rm4, cm4 = round((rm+r)/2), round((cm+c)/2)
+    rm4, cm4 = (rm+r)//2, (cm+c)//2
     h_tree = im_surf[rm4, cm4]
     out = (not h_min > h_tree + (hgoal-8)/2) or out
     if (out):

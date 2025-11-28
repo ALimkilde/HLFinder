@@ -191,6 +191,14 @@ def create_hl_dataframe():
     ])
     return df
 
+def get_df_from_result(df, result, search_pic):
+    for r in result:
+        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
+
+        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
+
+    return df
+
 def process_task(args):
     (df, fld, min_hl_length, max_hl_length, H, px_size_m_output,
      c_north, c_east) = args
@@ -221,10 +229,7 @@ def process_task(args):
 
     result =  cluster_and_extract(result, px_size_m_output, radius=20)
 
-    for r in result:
-        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
-
-        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
+    df = get_df_from_result(df, result, search_pic)
 
     return df
 
@@ -274,10 +279,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6210
-    north_max=6219
-    east_min=540
-    east_max=549
+    north_min=6217
+    north_max=6217
+    east_min=542
+    east_max=542
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -290,11 +295,6 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        # {"min_hl_length": 30 , "max_hl_length": 50,  "H": hlheight(30), "pxsize": 5},
-        # {"min_hl_length": 50 , "max_hl_length": 100, "H": hlheight(50), "pxsize": 5},
-        # {"min_hl_length": 100, "max_hl_length": 150, "H": hlheight(100), "pxsize": 5},
-        # {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 10},
-        # {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 10},
         {"min_hl_length": 30, "max_hl_length": 500, "H": hlheight(30), "pxsize": 5}
     ])
 
@@ -317,7 +317,7 @@ if __name__ == "__main__":
             )
 
 
-    all_results = run_tasks(tasks, ranges, use_parallel=False)
+    all_results = run_tasks(tasks, ranges, use_parallel=True)
     if (len(all_results) == 0):
         sys.exit()
 
