@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import os
-# from PIL import Image
+from PIL import Image
 import cv2
 import sys
 from scipy.ndimage import maximum_filter, minimum_filter
@@ -79,14 +79,14 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
         for east in range(east_min, east_max + 1):
             filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
             path = f"{folder_path}/{filename}"
-            # print(f"search for {path}")
-            if not os.path.isdir(folder_path):
+            if not os.path.exists(path):
                 continue
 
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            img = np.array(Image.open(path).convert("L"))
 
 
             # Compute placement in output
@@ -110,7 +110,7 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
             path = f"{folder_path}/{filename}"
             # print(f"search for {path}")
-            if not os.path.isdir(folder_path):
+            if not os.path.exists(path):
                 continue
 
             # print(f"Found surface data: {filename}")
@@ -145,7 +145,7 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
     if (filt == 'max'):
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
     else:
-        arr = maximum_filter(arr, size=(2, 2), mode='nearest')
+        arr = maximum_filter(arr, size=(3, 3), mode='nearest')
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).min(axis=(1,3))
 
     return out, n

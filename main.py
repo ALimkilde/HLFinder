@@ -219,14 +219,12 @@ def process_task(args):
         mask
     )
 
+    result =  cluster_and_extract(result, px_size_m_output, radius=20)
+
     for r in result:
         rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
 
         df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
-
-        search_pic.mark(rm, cm)
-        search_pic.mark(r0, c0)
-        search_pic.mark(r, c)
 
     return df
 
@@ -276,10 +274,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6217
-    north_max=6217
-    east_min=542
-    east_max=542
+    north_min=6210
+    north_max=6219
+    east_min=540
+    east_max=549
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -295,9 +293,9 @@ if __name__ == "__main__":
         # {"min_hl_length": 30 , "max_hl_length": 50,  "H": hlheight(30), "pxsize": 5},
         # {"min_hl_length": 50 , "max_hl_length": 100, "H": hlheight(50), "pxsize": 5},
         # {"min_hl_length": 100, "max_hl_length": 150, "H": hlheight(100), "pxsize": 5},
-        # {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 5},
-        # {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 5},
-        {"min_hl_length": 350, "max_hl_length": 500, "H": hlheight(350), "pxsize": 5}
+        # {"min_hl_length": 150, "max_hl_length": 250, "H": hlheight(150), "pxsize": 10},
+        # {"min_hl_length": 200, "max_hl_length": 350, "H": hlheight(200), "pxsize": 10},
+        {"min_hl_length": 30, "max_hl_length": 500, "H": hlheight(30), "pxsize": 5}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -320,10 +318,11 @@ if __name__ == "__main__":
 
 
     all_results = run_tasks(tasks, ranges, use_parallel=False)
+    if (len(all_results) == 0):
+        sys.exit()
 
-    
     df = pd.concat(all_results, ignore_index=True)
-    df = cluster_and_extract(df, ranges, radius=20)
+    df = df.drop_duplicates()
     df.to_csv("tmp.csv", sep=' ')
     save_HL_map(df, "tmp.html")
 
