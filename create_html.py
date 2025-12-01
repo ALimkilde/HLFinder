@@ -18,8 +18,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     max_h = min(max_h, 60)
     
     min_score, max_score = df["score"].min(), df["score"].max()
-    min_score = max(min_score, 0)
-    max_score = min(max_score, 10)
+    min_score = max(max(min_score, 0), score_threshold)
+    max_score = min(max_score, 20)
     
     i = 0
     for _, row in df.iterrows():
@@ -28,6 +28,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         i += 1
     
     print(f"N lines found: {i}")
+    if (i == 0):
+        sys.exit()
     
     # print(f"slope_max: {slope_max}")
     # print(f"slope_min: {slope_min}")
@@ -61,6 +63,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     # BUILD GEOJSON LINES
     # -------------------------------------------------------
     features = []
+
     
     for _, row in df.iterrows():
         if (row["score"] < score_threshold):

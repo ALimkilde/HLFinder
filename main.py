@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 from grid import Grid
-from hl_finder import search_highline, hlheight, get_highline_mask
+from hl_finder import search_highline, hlheight, get_highline_mask, hlheight_over_trees
 from search_picture import get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom
@@ -13,6 +13,7 @@ import pandas as pd
 from cluster_csv import cluster_and_extract
 from create_html import save_HL_map
 from numba import jit
+from hl_plotter import extract_line_profiles, plot_line_profiles
 
 import re
 
@@ -195,7 +196,12 @@ def get_df_from_result(df, result, search_pic):
     for r in result:
         rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
 
-        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, h_min - htree - hgoal, h_min - htree)
+        score_surf = h_min - htree - hlheight_over_trees(l)
+        score_terr = h_min - h_mid - hgoal
+
+        score = min(score_surf, score_terr)
+
+        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, score, h_min - htree)
 
     return df
 
@@ -227,7 +233,19 @@ def process_task(args):
         mask
     )
 
+
     result =  cluster_and_extract(result, px_size_m_output, radius=20)
+
+    # for r in result:
+    #      (
+    #          rm, cm, r0, c0, r1, c1, *_rest
+    #      ) = r
+
+    #      d_m, terr, surf = extract_line_profiles(search_pic.im, search_pic.im_surf, r0, c0, r1, c1, px_size_m_output)
+        
+    #      plot_line_profiles(d_m, terr, surf)
+    
+    # sys.exit()
 
     df = get_df_from_result(df, result, search_pic)
 
@@ -252,7 +270,6 @@ def run_tasks(tasks, ranges, use_parallel=True):
 
                 result = fut.result()
                 if result is not None:
-                    # all_results.append(cluster_and_extract(result, ranges, radius=20))
                     all_results.append(result)
 
     else:
@@ -263,7 +280,6 @@ def run_tasks(tasks, ranges, use_parallel=True):
             print(f"\rProgress: {i}/{total} [{'#' * int(40*i/total):<40}] {100*i/total:5.1f}%", end="")
 
             if result is not None:
-                # all_results.append(cluster_and_extract(result, ranges, radius=20))
                 all_results.append(result)
 
     print()  # finish progress line
@@ -279,10 +295,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6217
-    north_max=6217
-    east_min=542
-    east_max=542
+    north_min=6100
+    north_max=6149
+    east_min=860
+    east_max=890
+    outname="bornholm"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -295,7 +312,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 30, "max_hl_length": 500, "H": hlheight(30), "pxsize": 5}
+        {"min_hl_length": 30, "max_hl_length": 600, "H": hlheight(30), "pxsize": 10}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -323,8 +340,8 @@ if __name__ == "__main__":
 
     df = pd.concat(all_results, ignore_index=True)
     df = df.drop_duplicates()
-    df.to_csv("tmp.csv", sep=' ')
-    save_HL_map(df, "tmp.html")
+    df.to_csv(f"{outname}.csv", sep=' ')
+    save_HL_map(df, f"{outname}.html", score_threshold=-5)
 
 
 

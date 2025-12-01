@@ -145,7 +145,7 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
     if (filt == 'max'):
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
     else:
-        arr = maximum_filter(arr, size=(3, 3), mode='nearest')
+        arr = maximum_filter(arr, size=(10, 10), mode='nearest')
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).min(axis=(1,3))
 
     return out, n
