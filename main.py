@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 30, "max_hl_length": 600, "H": hlheight(30), "pxsize": 10}
+        {"min_hl_length": 30, "max_hl_length": 600, "H": hlheight(30), "pxsize": 15}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
