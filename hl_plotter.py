@@ -8,7 +8,13 @@ def hlheight(l):
 
 @njit
 def hlheight_atpos(x, l):
-    return min(hlheight(x), hlheight(l-x))
+    hl = hlheight(l)
+    a = -4.0*(hl - 8)/l**2
+    b = 4.0*(hl - 8)/l
+    c = 8.0
+   
+    return a*x**2 + b*x + c
+
 
 @njit
 def get_score(terrain, surface, r0, c0, r1, c1, px_size_m, h_min, l):

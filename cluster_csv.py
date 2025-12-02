@@ -51,10 +51,8 @@ def cluster_and_extract(results, px_size_m, radius=100):
             (
                 rm, cm, r0, c0, r, c,
                 h_min, l, h_mid, h0, h,
-                htree, hgoal
+                htree, hgoal, score
             ) = results[idx]
-
-            score = h_min - htree - hgoal
 
             if score > best_score:
                 best_score = score

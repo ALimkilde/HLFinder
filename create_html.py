@@ -85,7 +85,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         <b>Length:</b> {row['length']:.1f}<br>
         <b>Height:</b> {row['height']:.1f}<br>
         <b>Height over trees:</b> {row['htree']:.1f}<br>
-        <b>score:</b> {row['score']:.1f}<br><br>
+        <b>score:</b> {row['score']:.3f}<br><br>
     
         <a href='{google_link}' target='_blank'>Open in Google Maps</a>
         """

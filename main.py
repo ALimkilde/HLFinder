@@ -14,7 +14,6 @@ from cluster_csv import cluster_and_extract
 from create_html import save_HL_map
 from numba import jit
 from hl_plotter import extract_line_profiles, plot_line_profiles
-
 import re
 
 def filter_info_files(folder_path, H):
@@ -194,12 +193,7 @@ def create_hl_dataframe():
 
 def get_df_from_result(df, result, search_pic):
     for r in result:
-        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal = r
-
-        score_surf = h_min - htree - hlheight_over_trees(l)
-        score_terr = h_min - h_mid - hgoal
-
-        score = min(score_surf, score_terr)
+        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score = r
 
         df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, score, h_min - htree)
 
@@ -233,19 +227,17 @@ def process_task(args):
         mask
     )
 
-
-    result =  cluster_and_extract(result, px_size_m_output, radius=20)
+    result =  cluster_and_extract(result, px_size_m_output, radius=50)
 
     # for r in result:
     #      (
-    #          rm, cm, r0, c0, r1, c1, *_rest
+    #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h, htree, hgoal, score 
     #      ) = r
 
     #      d_m, terr, surf = extract_line_profiles(search_pic.im, search_pic.im_surf, r0, c0, r1, c1, px_size_m_output)
         
-    #      plot_line_profiles(d_m, terr, surf)
+    #      plot_line_profiles(d_m, terr, surf, score, l, h_min)
     
-    # sys.exit()
 
     df = get_df_from_result(df, result, search_pic)
 
@@ -298,8 +290,8 @@ if __name__ == "__main__":
     north_min=6100
     north_max=6149
     east_min=860
-    east_max=890
-    outname="bornholm"
+    east_max=899
+    outname="bornholm_new_score"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -312,7 +304,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 30, "max_hl_length": 600, "H": hlheight(30), "pxsize": 15}
+        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 10}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -321,7 +313,7 @@ if __name__ == "__main__":
     for _, r in ranges.iterrows():
         min_hl_length = r["min_hl_length"]
         max_hl_length = r["max_hl_length"]
-        H = r["H"]
+        H = hlheight(min_hl_length)
         px_size_m_output = r["pxsize"]
     
         coords = grid.get_highline_coords(H)
@@ -341,7 +333,7 @@ if __name__ == "__main__":
     df = pd.concat(all_results, ignore_index=True)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
-    save_HL_map(df, f"{outname}.html", score_threshold=-5)
+    save_HL_map(df, f"{outname}.html", score_threshold=0.5)
 
 
 
