@@ -214,12 +214,13 @@ def process_task(args):
     if search_pic == None:
         return None
 
-    mask = get_highline_mask(search_pic.im, px_size_m_output, min_hl_length, max_hl_length, H)
+    mask = get_highline_mask(search_pic.im, search_pic.im_anchor, px_size_m_output, min_hl_length, max_hl_length, H)
 
     # run detection
     result = search_highline(
         search_pic.im,
-        search_pic.im_surf,
+        search_pic.im_min_surf,
+        search_pic.im_anchor,
         px_size_m_output,
         min_hl_length,
         max_hl_length,
@@ -234,9 +235,9 @@ def process_task(args):
     #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h1, htree, hgoal, score 
     #      ) = r
 
-    #      d_m, terr, surf = extract_line_profiles(search_pic.im, search_pic.im_surf, r0, c0, r1, c1, px_size_m_output)
+    #      d_m, terr, surf, anch = extract_line_profiles(search_pic.im, search_pic.im_min_surf, search_pic.im_anchor, r0, c0, r1, c1, px_size_m_output)
         
-    #      plot_line_profiles(d_m, terr, surf, score, l, h_min, min(h0,h1))
+    #      plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, min(h0,h1))
     
 
     df = get_df_from_result(df, result, search_pic)
@@ -287,10 +288,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6090
-    north_max=6099
-    east_min=720
-    east_max=729
+    north_min=6096
+    north_max=6096
+    east_min=724
+    east_max=724
     outname="tmp"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
@@ -304,7 +305,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 12}
+        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 7}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -326,7 +327,7 @@ if __name__ == "__main__":
             )
 
 
-    all_results = run_tasks(tasks, ranges, use_parallel=True)
+    all_results = run_tasks(tasks, ranges, use_parallel=False)
     if (len(all_results) == 0):
         sys.exit()
 

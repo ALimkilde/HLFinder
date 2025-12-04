@@ -8,36 +8,41 @@ import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
+MAX_TREE_ANCHOR = 5
+MAX_TREE_FRACTION = 0.5
+
+def get_anchors(terr, surf):
+    maxh  = np.maximum(terr, surf)
+    trees = np.subtract(maxh, terr)
+    treefrac = MAX_TREE_FRACTION * trees
+    treemax = np.minimum(treefrac, MAX_TREE_ANCHOR)
+    return np.add(terr, treemax)
+
+
+
 class SearchPicture:
-    def __init__(self, im, im_surf, ref_px, ref_coords, px_size_m, tile_size_m):
+    def __init__(self, im, im_min_surf, im_max_surf, ref_px, ref_coords, px_size_m, tile_size_m):
         self.im = im
 
-        self.im_surf = im_surf
-        self.has_surf_data = (self.im_surf is not None)
+        self.im_min_surf = im_min_surf
+        self.has_min_surf_data = (self.im_min_surf is not None)
+
+        # Construct HL anchor image
+        if (im_max_surf is None):
+            self.im_anchor = im
+        else:
+            self.im_anchor = get_anchors(im, im_max_surf)
 
         self.ref_px = ref_px
         self.ref_coords = np.array(ref_coords)*1000
         self.px_size_m = px_size_m
         self.tile_size_m = tile_size_m
 
-        # Internals
-        self.im_marked = im.copy()
-        self.mark_val = 70
-
-
-
     def get_im(self):
         return self.im
 
-    def get_im_marked(self):
-        return self.im_marked
-
     def shape(self):
         return self.im.shape
-
-    def mark(self,x,y):
-        self.im_marked[x,y] = self.mark_val
-        # self.im_marked[self.ref_px[0], self.ref_px[1]] = self.mark_val
 
     def get_coords(self, x, y):
         diff = np.subtract((x,y), self.ref_px)
@@ -145,8 +150,8 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
     if (filt == 'max'):
         out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
     else:
-        arr = maximum_filter(arr, size=(10, 10), mode='nearest')
-        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).min(axis=(1,3))
+        arr = maximum_filter(arr, size=(4, 4), mode='nearest')
+        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).mean(axis=(1,3))
 
     return out, n
 
@@ -176,7 +181,8 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
 
     out, n = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
 
-    out_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
+    out_min_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
+    out_max_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'max')
 
     tile_size_m_out = float(final_size_m)
     refpx_y = math.floor(padding/n) 
@@ -185,7 +191,7 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     nout,mout = out.shape
 
     true_px_size_m = tile_size_m_out/nout
-    sp = SearchPicture(out, out_surface, (refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
+    sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
     
     return sp, true_px_size_m
 

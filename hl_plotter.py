@@ -88,7 +88,7 @@ def get_score(terrain, surface, r0, c0, r1, c1, px_size_m, h_min, l):
     return min(score_terr, score_surf), viol==0
 
 
-def extract_line_profiles(terrain, surface, r0, c0, r1, c1, px_size_m):
+def extract_line_profiles(terrain, surface, anchor, r0, c0, r1, c1, px_size_m):
     """
     Returns:
         d_m     – distance along the line in meters (1D float array)
@@ -125,10 +125,15 @@ def extract_line_profiles(terrain, surface, r0, c0, r1, c1, px_size_m):
     else:
        surf = terr
 
-    return d_m, terr, surf
+    if (anchor is not None):
+       anch = anchor[r_int, c_int]
+    else:
+       anch = terr
+
+    return d_m, terr, surf, anch
 
 
-def plot_line_profiles(d_m, terr, surf, score, l, h_min, hanchor):
+def plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, hanchor):
     plt.figure(figsize=(8, 4))
 
     ideal_height_backup = np.empty(len(d_m))
@@ -142,9 +147,11 @@ def plot_line_profiles(d_m, terr, surf, score, l, h_min, hanchor):
         ideal_height_walk[i] = - hlheight_walk_atpos(d, l)
         terr[i] = terr[i] - hanchor
         surf[i] = surf[i] - hanchor
+        anch[i] = anch[i] - hanchor
 
     plt.plot(d_m, terr, label="Terrain", lw=2)
     plt.plot(d_m, surf, label="Surface", lw=2)
+    plt.plot(d_m, anch, label="Anchors", lw=2)
     plt.plot(d_m, ideal_height_backup, 'k--', label="backup", lw=2)
     plt.plot(d_m, ideal_height_leash, 'b--', label="leash", lw=2)
     plt.plot(d_m, ideal_height_walk, 'r--', label="walk", lw=2)

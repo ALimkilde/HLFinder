@@ -11,7 +11,7 @@ import pandas as pd
 from search_picture import tree_in_the_way, get_distance_px_to_m
 from numba import njit
 from numba.typed import List
-from hl_plotter import get_score, hlheight
+from hl_plotter import get_score, hlheight, TREE_DIST
 
 import re
 
@@ -77,26 +77,26 @@ def max_quadrants_2(im, dist):
 
     return Q2, Q4
 
-def improved_max_masks(im, px_size_m, min_hl_length, max_hl_length):
+def improved_max_masks(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length):
 
      num = 7
 
      lengths = np.linspace(min_hl_length, max_hl_length, num)
 
-     mask = np.full(im.shape, False)
+     mask = np.full(im_midpoint.shape, False)
 
      for i,l in enumerate(lengths[:-1]):
          lmin = l
          lmax = lengths[i+1]
          hgoal = hlheight(lmin)
          n_extended = math.ceil(lmax/(2*px_size_m))
-         Q1, Q3 = max_quadrants_1(im, n_extended)
-         Q2, Q4 = max_quadrants_2(im, n_extended)
+         Q1, Q3 = max_quadrants_1(im_anchor, n_extended)
+         Q2, Q4 = max_quadrants_2(im_anchor, n_extended)
 
-         extQ1 = np.greater(Q1, im+hgoal)
-         extQ2 = np.greater(Q2, im+hgoal)
-         extQ3 = np.greater(Q3, im+hgoal)
-         extQ4 = np.greater(Q4, im+hgoal)
+         extQ1 = np.greater(Q1, im_midpoint+hgoal)
+         extQ2 = np.greater(Q2, im_midpoint+hgoal)
+         extQ3 = np.greater(Q3, im_midpoint+hgoal)
+         extQ4 = np.greater(Q4, im_midpoint+hgoal)
 
          and1 = np.logical_and(extQ1, extQ3)
          and2 = np.logical_and(extQ2, extQ4)
@@ -179,12 +179,11 @@ def plot_masks(masks):
     plt.tight_layout()
     plt.show()
 
-def get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H):
-    extmax_mask = improved_max_masks(im, px_size_m, min_hl_length, max_hl_length)
+def get_highline_mask(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length, H):
+    extmax_mask = improved_max_masks(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length)
 
-    slope_mask = get_slope_mask(im, px_size_m)
+    slope_mask = get_slope_mask(im_anchor, px_size_m)
 
-    # mask = np.logical_and(slope_mask, np.logical_and(extmin_mask, extmax_mask))
     mask = np.logical_and(slope_mask, extmax_mask)
 
     # masks = {
@@ -198,7 +197,7 @@ def get_highline_mask(im, px_size_m, min_hl_length, max_hl_length, H):
     return mask
 
 @njit
-def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mask):
+def search_highline(im, im_min_surf, im_anchor, px_size_m, min_hl_length, max_hl_length, H, mask):
 
     result = List()
 
@@ -209,7 +208,7 @@ def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mas
     for r0 in range(0, nx):
         for c0 in range(0, ny):
             if mask[r0,c0]:
-                h0 = float(im[r0, c0])
+                h0 = float(im_anchor[r0, c0])
                 
                 if (h0 < H): 
                     continue
@@ -230,7 +229,7 @@ def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mas
 
                             hgoal = hlheight(l)
 
-                            h = float(im[r, c])
+                            h = float(im_anchor[r, c])
                             if (h < hgoal): 
                                 continue
 
@@ -249,10 +248,10 @@ def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mas
                                 # htree = max(htree, h_mid)
                                 htree = h_mid
 
-                                score, do_not_hit_tree = get_score(im, im_surf, r0, c0, r, c, px_size_m, h_min, l)
+                                score, do_not_hit_tree = get_score(im, im_min_surf, r0, c0, r, c, px_size_m, h_min, l)
                                 
                                 # if (not tree_in_way):
-                                if (score>0.0 and do_not_hit_tree):
+                                if (score>0.4 and do_not_hit_tree):
                                     result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score))
                  
 
