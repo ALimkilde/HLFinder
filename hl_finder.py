@@ -249,10 +249,10 @@ def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mas
                                 # htree = max(htree, h_mid)
                                 htree = h_mid
 
-                                score = get_score(im, im_surf, r0, c0, r, c, px_size_m, h_min, l)
+                                score, do_not_hit_tree = get_score(im, im_surf, r0, c0, r, c, px_size_m, h_min, l)
                                 
                                 # if (not tree_in_way):
-                                if (score>0.4):
+                                if (score>0.0 and do_not_hit_tree):
                                     result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score))
                  
 

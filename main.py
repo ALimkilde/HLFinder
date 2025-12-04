@@ -231,12 +231,12 @@ def process_task(args):
 
     # for r in result:
     #      (
-    #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h, htree, hgoal, score 
+    #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h1, htree, hgoal, score 
     #      ) = r
 
     #      d_m, terr, surf = extract_line_profiles(search_pic.im, search_pic.im_surf, r0, c0, r1, c1, px_size_m_output)
         
-    #      plot_line_profiles(d_m, terr, surf, score, l, h_min)
+    #      plot_line_profiles(d_m, terr, surf, score, l, h_min, min(h0,h1))
     
 
     df = get_df_from_result(df, result, search_pic)
@@ -287,11 +287,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6040
-    north_max=6359
-    east_min=440
-    east_max=749
-    outname="all_dk_new_score"
+    north_min=6090
+    north_max=6099
+    east_min=720
+    east_max=729
+    outname="tmp"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     df = pd.concat(all_results, ignore_index=True)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
-    save_HL_map(df, f"{outname}.html", score_threshold=0.4)
+    save_HL_map(df, f"{outname}.html", score_threshold=0.0)
 
 
 

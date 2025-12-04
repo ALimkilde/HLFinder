@@ -2,21 +2,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
 
-
+TREE_DIST = 15 # How far out we consider touching a tree a problem
 
 @njit
 def hlheight(l):
     return 0.08 * l + 8
 
 @njit
+def hlheight_walk_atpos(x, l):
+    hl = hlheight(l)
+    a = -4.0*(hl - 8)/l**2
+    b = 4.0*(hl - 8)/l
+    c = 1.0
+   
+    return a*x**2 + b*x + c
+
+@njit
+def hlheight_leash_atpos(x, l):
+    hl = hlheight(l)
+    a = -4.0*(hl - 8)/l**2
+    b = 4.0*(hl - 8)/l
+    c = 5.0
+   
+    return a*x**2 + b*x + c
+
+@njit
 def hlheight_atpos(x, l):
     hl = hlheight(l)
     a = -4.0*(hl - 8)/l**2
     b = 4.0*(hl - 8)/l
-    c = 6.0
+    c = 8.5
    
     return a*x**2 + b*x + c
-
 
 @njit
 def get_score(terrain, surface, r0, c0, r1, c1, px_size_m, h_min, l):
@@ -42,20 +59,33 @@ def get_score(terrain, surface, r0, c0, r1, c1, px_size_m, h_min, l):
     r_int = np.rint(rr).astype(np.int32)
     c_int = np.rint(cc).astype(np.int32)
 
-    # Clip to valid image bounds
-    # r_int = np.clip(r_int, 0, terrain.shape[0] - 1)
-    # c_int = np.clip(c_int, 0, terrain.shape[1] - 1)
-
     # Distance array (meters)
     d_m = t * np.hypot(dr * px_size_m, dc * px_size_m)
 
     # Extract curves (fast, vectorized)
     terr = np.empty(len(rr))
-    for i in range(len(rr)):
-        terr[i] = h_min - hlheight_atpos(d_m[i], l) - terrain[r_int[i], c_int[i]]
+    surf = np.empty(len(rr))
 
-    score = float(np.sum(np.greater(terr,0)))/length_px
-    return score
+    viol = 0  # number of points violating the walk-height test
+
+    for i in range(len(rr)):
+        d = d_m[i]
+        r = r_int[i]
+        c = c_int[i]
+
+        terr[i] = h_min - hlheight_atpos(d, l) - terrain[r, c]
+        surf[i] = h_min - hlheight_leash_atpos(d, l) - surface[r, c]
+        
+        # Only check inside the valid walking interval
+        if d > TREE_DIST and d < l - TREE_DIST:
+            limit = h_min - hlheight_walk_atpos(d, l)
+            if terrain[r,c] > limit or surface[r,c] > limit:
+                viol += 1
+
+    score_terr = float(np.sum(np.greater(terr,0)))/length_px
+    score_surf = float(np.sum(np.greater(surf,0)))/length_px
+    
+    return min(score_terr, score_surf), viol==0
 
 
 def extract_line_profiles(terrain, surface, r0, c0, r1, c1, px_size_m):
@@ -98,16 +128,29 @@ def extract_line_profiles(terrain, surface, r0, c0, r1, c1, px_size_m):
     return d_m, terr, surf
 
 
-def plot_line_profiles(d_m, terr, surf, score, l, h_min):
+def plot_line_profiles(d_m, terr, surf, score, l, h_min, hanchor):
     plt.figure(figsize=(8, 4))
-    plt.plot(d_m, terr, label="Terrain", lw=2)
-    # plt.plot(d_m, surf, label="Surface", lw=2)
 
-    ideal_height = np.empty(len(d_m))
+    ideal_height_backup = np.empty(len(d_m))
+    ideal_height_leash = np.empty(len(d_m))
+    ideal_height_walk = np.empty(len(d_m))
+    terr = terr.astype(np.float64)
+    surf = surf.astype(np.float64)
     for i, d in enumerate(d_m):
-        ideal_height[i] = h_min - hlheight_atpos(d, l)
+        ideal_height_backup[i] = - hlheight_atpos(d, l)
+        ideal_height_leash[i] = - hlheight_leash_atpos(d, l)
+        ideal_height_walk[i] = - hlheight_walk_atpos(d, l)
+        terr[i] = terr[i] - hanchor
+        surf[i] = surf[i] - hanchor
 
-    plt.plot(d_m, ideal_height, 'k--', label="hlheight_atpos", lw=2)
+    plt.plot(d_m, terr, label="Terrain", lw=2)
+    plt.plot(d_m, surf, label="Surface", lw=2)
+    plt.plot(d_m, ideal_height_backup, 'k--', label="backup", lw=2)
+    plt.plot(d_m, ideal_height_leash, 'b--', label="leash", lw=2)
+    plt.plot(d_m, ideal_height_walk, 'r--', label="walk", lw=2)
+
+    plt.axvline(TREE_DIST); plt.axvline(l - TREE_DIST)
+
     plt.xlabel("Distance (m)")
     plt.ylabel("Height (m)")
     plt.title(f"Height Profiles, score = {score}")
