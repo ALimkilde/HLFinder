@@ -287,11 +287,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6100
-    north_max=6149
-    east_min=860
-    east_max=899
-    outname="bornholm_new_score"
+    north_min=6040
+    north_max=6359
+    east_min=440
+    east_max=749
+    outname="all_dk_new_score"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -304,7 +304,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 10}
+        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 12}
     ])
 
     df = create_hl_dataframe()           # read-only in workers
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     df = pd.concat(all_results, ignore_index=True)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
-    save_HL_map(df, f"{outname}.html", score_threshold=0.5)
+    save_HL_map(df, f"{outname}.html", score_threshold=0.4)
 
 
 

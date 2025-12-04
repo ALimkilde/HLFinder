@@ -2,16 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
 
+
+
 @njit
 def hlheight(l):
-    return 0.08 * l + 12
+    return 0.08 * l + 8
 
 @njit
 def hlheight_atpos(x, l):
     hl = hlheight(l)
     a = -4.0*(hl - 8)/l**2
     b = 4.0*(hl - 8)/l
-    c = 8.0
+    c = 6.0
    
     return a*x**2 + b*x + c
 

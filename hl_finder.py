@@ -11,13 +11,13 @@ import pandas as pd
 from search_picture import tree_in_the_way, get_distance_px_to_m
 from numba import njit
 from numba.typed import List
-from hl_plotter import get_score
+from hl_plotter import get_score, hlheight
 
 import re
 
-@njit
-def hlheight(l):
-    return 0.08 * l + 8
+# @njit
+# def hlheight(l):
+#     return 0.08 * l + 8
 
 @njit
 def hlheight_over_trees(l):
@@ -252,7 +252,7 @@ def search_highline(im, im_surf, px_size_m, min_hl_length, max_hl_length, H, mas
                                 score = get_score(im, im_surf, r0, c0, r, c, px_size_m, h_min, l)
                                 
                                 # if (not tree_in_way):
-                                if (score>0.5):
+                                if (score>0.4):
                                     result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score))
                  
 
