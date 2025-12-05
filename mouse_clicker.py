@@ -5,8 +5,8 @@ import pyautogui
 # CONFIGURATION
 # -----------------------
 X_MINUTES = 40           # total runtime in minutes
-INTERVAL = 100            # interval in seconds
-MOVE_CM = 0.6585         # Seems good for 67% ; how far to move the mouse down
+INTERVAL = 90            # interval in seconds
+MOVE_CM = 1.025#0.6585         # Seems good for 67% ; how far to move the mouse down
 DELAY = 5                # Delay in sec
 MAX_ITER = 34            # Maximum iterations
 # -----------------------

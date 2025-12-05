@@ -288,11 +288,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6096
-    north_max=6096
-    east_min=724
-    east_max=724
-    outname="tmp"
+    north_min=6120
+    north_max=6229
+    east_min=630
+    east_max=729
+    outname="zealand_w_tree_dist_8"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -327,7 +327,7 @@ if __name__ == "__main__":
             )
 
 
-    all_results = run_tasks(tasks, ranges, use_parallel=False)
+    all_results = run_tasks(tasks, ranges, use_parallel=True)
     if (len(all_results) == 0):
         sys.exit()
 

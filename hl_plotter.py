@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
 
-TREE_DIST = 15 # How far out we consider touching a tree a problem
+TREE_DIST = 8 # How far out we consider touching a tree a problem
 
 @njit
 def hlheight(l):
@@ -74,13 +74,18 @@ def get_score(terrain, surface, r0, c0, r1, c1, px_size_m, h_min, l):
         c = c_int[i]
 
         terr[i] = h_min - hlheight_atpos(d, l) - terrain[r, c]
-        surf[i] = h_min - hlheight_leash_atpos(d, l) - surface[r, c]
+        if(surface is not None):
+            surf[i] = h_min - hlheight_leash_atpos(d, l) - surface[r, c]
         
         # Only check inside the valid walking interval
         if d > TREE_DIST and d < l - TREE_DIST:
             limit = h_min - hlheight_walk_atpos(d, l)
-            if terrain[r,c] > limit or surface[r,c] > limit:
+            if terrain[r,c] > limit :
                 viol += 1
+
+            if surface is not None:
+                if surface[r,c] > limit:
+                    viol += 1
 
     score_terr = float(np.sum(np.greater(terr,0)))/length_px
     score_surf = float(np.sum(np.greater(surf,0)))/length_px
