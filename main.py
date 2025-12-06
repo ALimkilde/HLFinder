@@ -144,7 +144,13 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
     print(f"✅ Metadata written to {out_file}")
 
 
-def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, height, length, hmid, ha1, ha2, score, htree):
+def add_tile_row(df, search_pic, res):
+
+    pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, h_min, length, hmid, ha1, ha2, hgoal, score, hmean_terr, hmean_surf, walkable = res
+
+    height = h_min - hmid
+    rigging_height_a1 = h_min - search_pic.im[pxa1x, pxa1y]
+    rigging_height_a2 = h_min - search_pic.im[pxa2x, pxa2y]
 
     midx, midy = search_pic.get_coords(pxmidx, pxmidy)
     a1x, a1y = search_pic.get_coords(pxa1x, pxa1y)
@@ -161,10 +167,14 @@ def add_tile_row(df, search_pic, pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, hei
         "height": height,
         "hmid": hmid,
         "ha1" : ha1,
+        "rigging_height_a1": rigging_height_a1,
         "ha2" : ha2,
+        "rigging_height_a2": rigging_height_a2,
         "score" : score,
-        "htree" : htree
-
+        "hmean_terr" : hmean_terr,
+        "hmean_surf" : hmean_surf,
+        "hmean" : min(hmean_terr, hmean_surf),
+        "walkable_length" : walkable
     }
 
     df.loc[len(df)] = new_row
@@ -185,17 +195,20 @@ def create_hl_dataframe():
         "height",
         "hmid",
         "ha1",
+        "rigging_height_a1",
         "ha2",
+        "rigging_height_a2",
         "score",
-        "htree"
+        "hmean_terr",
+        "hmean_surf",
+        "hmean",
+        "walkable_length"
     ])
     return df
 
 def get_df_from_result(df, result, search_pic):
-    for r in result:
-        rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score = r
-
-        df = add_tile_row(df, search_pic, rm, cm, r0, c0, r, c, h_min - h_mid, l, h_mid, h0, h, score, h_min - htree)
+    for res in result:
+        df = add_tile_row(df, search_pic, res)
 
     return df
 
@@ -288,11 +301,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6120
-    north_max=6229
-    east_min=630
-    east_max=729
-    outname="zealand_w_tree_dist_8"
+    north_min=6040
+    north_max=6399
+    east_min=440
+    east_max=749
+    outname="all_dk_tree_dist_5"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -331,7 +344,8 @@ if __name__ == "__main__":
     if (len(all_results) == 0):
         sys.exit()
 
-    df = pd.concat(all_results, ignore_index=True)
+    # df = pd.concat(all_results, ignore_index=True)
+    df = pd.concat(all_results, ignore_index=False)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
     save_HL_map(df, f"{outname}.html", score_threshold=0.0)

@@ -240,19 +240,11 @@ def search_highline(im, im_min_surf, im_anchor, px_size_m, min_hl_length, max_hl
                             h_min = min(h, h0)
 
                             if(h_min > h_mid + hgoal):
-                                # print(f"I found a highline with height {h_min - h_mid}")
-                                # print(f"min_h: {min(h,h0)}, h0: {h0}, h: {h}, h_mid: {h_mid}")
-                                # hgoal_tree = hlheight_over_trees(l)
-                                # tree_in_way, htree = tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal_tree, h_min, h_mid)
-
-                                # htree = max(htree, h_mid)
-                                htree = h_mid
-
-                                score, do_not_hit_tree = get_score(im, im_min_surf, r0, c0, r, c, px_size_m, h_min, l)
+                                score, do_not_hit_tree, hmean_terr, hmean_surf, walkable = get_score(im, im_min_surf, r0, c0, r, c, px_size_m, h_min, l)
                                 
                                 # if (not tree_in_way):
                                 if (score>0.4 and do_not_hit_tree):
-                                    result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, htree, hgoal, score))
+                                    result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, hgoal, score, hmean_terr, hmean_surf, walkable))
                  
 
     return result

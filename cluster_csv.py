@@ -44,21 +44,39 @@ def cluster_and_extract(results, px_size_m, radius=100):
         idxs = np.where(labels == cl)[0]
 
         # Compute scores for these indices
-        best_idx = None
+        best_score_idx = None
         best_score = -np.inf
+
+        best_hmean_idx = None
+        best_hmean = -np.inf
+
+        best_walkable_idx = None
+        best_walkable = -np.inf
 
         for idx in idxs:
             (
                 rm, cm, r0, c0, r, c,
                 h_min, l, h_mid, h0, h,
-                htree, hgoal, score
+                hgoal, score, hmean_terr, hmean_surf, walkable
             ) = results[idx]
+
+            hmean = min(hmean_terr, hmean_surf)
 
             if score > best_score:
                 best_score = score
-                best_idx = idx
+                best_score_idx = idx
 
-        selected.append(results[best_idx])
+            if hmean > best_hmean:
+                best_hmean = hmean
+                best_hmean_idx = idx
+
+            if walkable > best_walkable:
+                best_walkable = walkable
+                best_walkable_idx = idx
+
+        selected.append(results[best_score_idx])
+        selected.append(results[best_hmean_idx])
+        selected.append(results[best_walkable_idx])
 
     return selected
 

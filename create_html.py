@@ -14,8 +14,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
     
     # Create color scale by height
-    min_h, max_h = df["height"].min(), df["height"].max()
-    max_h = min(max_h, 60)
+    min_h, max_h = df["hmean"].min(), df["hmean"].max()
+    max_h = min(max_h, 10)
     
     min_score, max_score = df["score"].min(), df["score"].max()
     min_score = max(max(min_score, 0), score_threshold)
@@ -45,7 +45,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         # print(f"rgb({r},0,{b})")
         return f"rgb({r},0,{b})"
     
-    def height_color(h):
+    def hmean_color(h):
         t = (h - min_h) / (max_h - min_h + 1e-9)
         # blue → red gradient
         r = int(255 * t)
@@ -75,8 +75,17 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
         # Convert midpoint in UTM -> WGS84 for Google Maps link
         center_lat, center_lon = utm_to_latlon(row["midx"], row["midy"])
+
+        a1_lat, a1_lon = utm_to_latlon(row["a1x"], row["a1y"])
+        a2_lat, a2_lon = utm_to_latlon(row["a2x"], row["a2y"])
     
         google_link = f"https://www.google.com/maps?q={center_lat},{center_lon}"
+        google_link_a1 = f"https://www.google.com/maps?q={a1_lat},{a1_lon}"
+        google_link_a2 = f"https://www.google.com/maps?q={a2_lat},{a2_lon}"
+
+        skrfoto_link = f'https://skraafoto.dataforsyningen.dk/?center={row["midx"]}%2C{row["midy"]}'
+        skrfoto_link_a1 = f'https://skraafoto.dataforsyningen.dk/?center={row["a1x"]}%2C{row["a1y"]}'
+        skrfoto_link_a2 = f'https://skraafoto.dataforsyningen.dk/?center={row["a2x"]}%2C{row["a2y"]}'
     
         popup_html = f"""
         <b>Center UTM:</b><br>
@@ -84,10 +93,19 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
         <b>Length:</b> {row['length']:.1f}<br>
         <b>Height:</b> {row['height']:.1f}<br>
-        <b>Height over trees:</b> {row['htree']:.1f}<br>
+        <b>Mean height:</b> {row['hmean']:.1f}<br>
+        <b>Rigging height a1:</b> {row['rigging_height_a1']:.1f}<br>
+        <b>Rigging height a2:</b> {row['rigging_height_a2']:.1f}<br>
+        <b>Walkable length:</b> {row['walkable_length']:.1f}<br>
         <b>score:</b> {row['score']:.3f}<br><br>
     
-        <a href='{google_link}' target='_blank'>Open in Google Maps</a>
+        <a href='{google_link}' target='_blank'>Middle in Google Maps</a><br>
+        <a href='{google_link_a1}' target='_blank'>Anchor 1 in Google Maps</a><br>
+        <a href='{google_link_a2}' target='_blank'>Anchor 2 in Google Maps</a><br><br>
+
+        <a href='{skrfoto_link}' target='_blank'>Middle skråfoto</a><br>
+        <a href='{skrfoto_link_a1}' target='_blank'>Anchor 1 skråfoto</a><br>
+        <a href='{skrfoto_link_a2}' target='_blank'>Anchor 2 skråfoto</a><br>
         """
     
         features.append({
@@ -97,8 +115,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
                 "midy": float(row["midy"]),
                 "length": float(row["length"]),
                 "height": float(row["height"]),
-                "htree": float(row["htree"]),
-                "color": score_color(row["score"]),
+                "color": hmean_color(row["hmean"]),
+                # "color": score_color(row["score"]),
                 "popup": popup_html
             },
             "geometry": {

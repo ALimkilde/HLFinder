@@ -9,7 +9,7 @@ from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
 MAX_TREE_ANCHOR = 5
-MAX_TREE_FRACTION = 0.5
+MAX_TREE_FRACTION = 0.33
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
