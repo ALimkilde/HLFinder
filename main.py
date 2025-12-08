@@ -146,15 +146,23 @@ def write_meta_data_tiles(folder_path, north_min, north_max, east_min, east_max,
 
 def add_tile_row(df, search_pic, res):
 
-    pxmidx, pxmidy, pxa1x, pxa1y, pxa2x, pxa2y, h_min, length, hmid, ha1, ha2, hgoal, score, hmean_terr, hmean_surf, walkable = res
+    rm, cm, ra1, ca1, ra2, ca2, h_min, length, hmid, ha1, ha2, hgoal, score, hmean_terr, hmean_surf, walkable = res
 
     height = h_min - hmid
-    rigging_height_a1 = h_min - search_pic.im[pxa1x, pxa1y]
-    rigging_height_a2 = h_min - search_pic.im[pxa2x, pxa2y]
+    rigging_height_a1 = h_min - search_pic.im[ra1, ca1]
+    rigging_height_a2 = h_min - search_pic.im[ra2, ca2]
 
-    midx, midy = search_pic.get_coords(pxmidx, pxmidy)
-    a1x, a1y = search_pic.get_coords(pxa1x, pxa1y)
-    a2x, a2y = search_pic.get_coords(pxa2x, pxa2y)
+    midx, midy = search_pic.get_coords(rm, cm)
+    a1x, a1y = search_pic.get_coords(ra1, ca1)
+    a2x, a2y = search_pic.get_coords(ra2, ca2)
+
+    search_pic.im[rm,cm] = 100
+    print(f"rm: {rm}")
+    print(f"cm: {cm}")
+    print(f"midx: {midx}")
+    print(f"midy: {midy}")
+    plt.imshow(search_pic.im)
+    plt.show()
 
     new_row = {
         "midx": midx,    # pixel index (x)
@@ -217,7 +225,7 @@ def process_task(args):
      c_north, c_east) = args
 
     # prepare search area
-    search_pic, px_size_m_output = get_search_picture(
+    search_pic = get_search_picture(
         fld,
         c_north,
         c_east,
@@ -301,11 +309,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6040
-    north_max=6399
-    east_min=440
-    east_max=749
-    outname="all_dk_tree_dist_5"
+    north_min=6187
+    north_max=6187
+    east_min=719
+    east_max=719
+    outname="tmp"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -318,7 +326,7 @@ if __name__ == "__main__":
 
 
     ranges = pd.DataFrame([
-        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 7}
+        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 10}
     ])
 
     df = create_hl_dataframe()           # read-only in workers

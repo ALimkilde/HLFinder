@@ -3,7 +3,7 @@ import folium
 from pyproj import Transformer
 import sys
 
-def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="north"):
+def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="north", hmean_threshold=0):
     # Prepare UTM→WGS84 transformer
     utm_crs = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
     transformer = Transformer.from_crs(utm_crs, "EPSG:4326", always_xy=True)
@@ -15,7 +15,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
     # Create color scale by height
     min_h, max_h = df["hmean"].min(), df["hmean"].max()
-    max_h = min(max_h, 10)
+    max_h = min(max_h, 15)
     
     min_score, max_score = df["score"].min(), df["score"].max()
     min_score = max(max(min_score, 0), score_threshold)
@@ -24,6 +24,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     i = 0
     for _, row in df.iterrows():
         if (row["score"] < score_threshold):
+            continue
+        if (row["hmean"] < hmean_threshold):
             continue
         i += 1
     
@@ -67,6 +69,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
     for _, row in df.iterrows():
         if (row["score"] < score_threshold):
+            continue
+        if (row["hmean"] < hmean_threshold):
             continue
     
         # Convert endpoints
@@ -286,6 +290,7 @@ if __name__ == "__main__":
     csv_file = sys.argv[1]
     output_html = sys.argv[2]
     score_threshold = float(sys.argv[3])
+    hmean_threshold = float(sys.argv[4])
     utm_zone = 32
     hemisphere = "north"
     # -------------------------------------------------------
@@ -295,5 +300,5 @@ if __name__ == "__main__":
     # -------------------------------------------------------
     df = pd.read_csv(csv_file, sep=" ")
     
-    save_HL_map(df, output_html, score_threshold, utm_zone, hemisphere)
+    save_HL_map(df, output_html, score_threshold, utm_zone, hemisphere, hmean_threshold)
 

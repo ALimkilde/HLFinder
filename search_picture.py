@@ -44,10 +44,10 @@ class SearchPicture:
     def shape(self):
         return self.im.shape
 
-    def get_coords(self, x, y):
-        diff = np.subtract((x,y), self.ref_px)
-        diff[0] = -diff[0] 
-        diff = np.array((diff[1],diff[0]))
+    def get_coords(self, r, c):
+        diff = np.subtract((c,r), self.ref_px)
+        diff[1] = -diff[1] 
+        diff = np.array((diff[0],diff[1]))
         new_coor = np.add(self.ref_coords,diff*self.px_size_m)
         return tuple(new_coor)
 
@@ -139,28 +139,120 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
 
     return mosaic, mosaic_surface
 
+def original_to_coarse_pixel(r, c, n, crop_px):
+    """
+    Given a pixel (r, c) in the ORIGINAL cropped mosaic coordinates
+    (i.e., 0 <= r < H0, same for c), return the coarse pixel index (i, j).
+
+    Parameters
+    ----------
+    r, c : int
+        Row/column in the original mosaic.
+    n : int
+        Block size used in coarsening (fine pixels per coarse pixel).
+    crop_px : int
+        Crop applied around the original mosaic before coarsening.
+
+    Returns
+    -------
+    i, j : int
+        Coordinates of the coarse pixel in the downsampled array.
+        Returns None, None if the pixel lies inside the cropped-away border.
+    """
+
+    # Check if the pixel lies inside the usable (not-cropped-away) region
+    if r < crop_px or c < crop_px:
+        return None, None
+
+    # Coarse pixel indices (floor division)
+    i = (r - crop_px) // n
+    j = (c - crop_px) // n
+
+    return i, j
+
 def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
-    if (mosaic is None):
-        return None, None 
+    """
+    Crop and downsample an image by block aggregation.
+    Adjusts crop_px upward so the final cropped image dimensions
+    are exact multiples of the block size n.
 
-    arr = mosaic[crop_px:-crop_px, crop_px:-crop_px]
-    
-    n = math.floor(px_size_m * px_size_m_output)
-    # print(f"n: {n}")
-    if (filt == 'max'):
-        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).max(axis=(1,3))
-    else:
+    Returns:
+        out           - coarsened image
+        n             - block size (fine pixels per coarse pixel)
+        crop_px_new   - adjusted crop value
+        size_m        - (height_m, width_m) size of the output in meters
+    """
+
+    if mosaic is None:
+        return None, None, None, None
+
+    # ----- 1. Compute block size n correctly -----
+    n = int(px_size_m_output / px_size_m)
+    if n < 1:
+        raise ValueError("px_size_m_output must be >= px_size_m.")
+
+    H0, W0 = mosaic.shape
+
+    # ----- 2. Compute how much extra cropping is needed -----
+    def adjust_crop(crop_px, size):
+        interior = size - 2 * crop_px
+        remainder = interior % n
+        if remainder == 0:
+            return crop_px
+        needed = n - remainder
+        return crop_px - needed // 2
+
+
+    crop_px_new = max(
+        adjust_crop(crop_px, H0),
+        adjust_crop(crop_px, W0)
+    )
+
+    # ----- 3. Apply the adjusted crop -----
+    arr = mosaic[crop_px_new : -crop_px_new, crop_px_new : -crop_px_new]
+    H, W = arr.shape  # guaranteed multiples of n
+
+    # ----- 4. Optional prefiltering -----
+    if filt == "mean":
         arr = maximum_filter(arr, size=(4, 4), mode='nearest')
-        out = arr[:arr.shape[0]//n*n, :arr.shape[1]//n*n].reshape(arr.shape[0]//n, n, arr.shape[1]//n, n).mean(axis=(1,3))
+    elif filt != "max" and filt != "min":
+        raise ValueError("filt must be 'max' or 'mean'")
 
-    return out, n
+    # ----- 5. Block reshape and aggregation -----
+    arr_blocks = arr.reshape(H // n, n, W // n, n)
+
+    if filt == "max":
+        out = arr_blocks.max(axis=(1, 3))
+    elif filt == "min":
+        out = arr_blocks.min(axis=(1, 3))
+    else:
+        out = arr_blocks.mean(axis=(1, 3))
+
+    # ----- 6. Compute output physical size -----
+    Hc, Wc = out.shape
+    size_m = (Hc * px_size_m_output, Wc * px_size_m_output)
+
+    return out, n, crop_px_new, size_m
+
+def coarse_pixel_source_range(i, j, n, crop_px):
+    """
+    Return (row_start, row_end, col_start, col_end) in original mosaic coordinates
+    for coarse pixel (i, j).
+    """
+
+    row_start = crop_px + i * n
+    row_end   = crop_px + (i + 1) * n - 1
+
+    col_start = crop_px + j * n
+    col_end   = crop_px + (j + 1) * n - 1
+
+    return row_start, row_end, col_start, col_end
+
 
 def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
 
     max_hl_length_in_km = math.ceil(max_hl_length/1000)
-    px_size_m = float(tile_size_px)/float(tile_size_meter)
-
-    final_size_m = tile_size_meter + max_hl_length
+    px_size_m = float(tile_size_meter)/float(tile_size_px)
 
     north_min = north - max_hl_length_in_km
     north_max = north + max_hl_length_in_km
@@ -173,27 +265,25 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     mosaic, mosaic_surface = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
     if mosaic is None:
-        return None, None
+        return None
 
-    padding = math.ceil(max_hl_length/2*px_size_m)
+    padding = math.ceil(max_hl_length/(2*px_size_m))
     crop_px = tile_size_px - padding
-    # print(f"Crop: {crop_px}")
 
-    out, n = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
+    out, n, crop_px, tile_size_m_out = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
 
-    out_min_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
-    out_max_surface, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'max')
+    out_min_surface, _, _, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
+    out_max_surface, _, _, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'max')
 
-    tile_size_m_out = float(final_size_m)
-    refpx_y = math.floor(padding/n) 
-    refpx_x = math.floor((padding+tile_size_px)/n) 
+    refpx_x, refpx_y = original_to_coarse_pixel(tile_size_px, 2*tile_size_px, n, crop_px)
 
     nout,mout = out.shape
 
-    true_px_size_m = tile_size_m_out/nout
-    sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_x,refpx_y),(east,north),true_px_size_m,tile_size_m_out)
+    sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_x,refpx_y),(east,north),px_size_m_output,tile_size_m_out)
     
-    return sp, true_px_size_m
+    plt.imshow(out)
+    plt.show()
+    return sp
 
 @njit
 def tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
