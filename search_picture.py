@@ -8,8 +8,7 @@ import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
-MAX_TREE_ANCHOR = 5
-MAX_TREE_FRACTION = 0.33
+from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
@@ -17,8 +16,6 @@ def get_anchors(terr, surf):
     treefrac = MAX_TREE_FRACTION * trees
     treemax = np.minimum(treefrac, MAX_TREE_ANCHOR)
     return np.add(terr, treemax)
-
-
 
 class SearchPicture:
     def __init__(self, im, im_min_surf, im_max_surf, ref_px, ref_coords, px_size_m, tile_size_m):

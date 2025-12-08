@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
 
-TREE_DIST = 5 # How far out we consider touching a tree a problem
+from config import TREE_DIST
 
 @njit
 def hlheight(l):

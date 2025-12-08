@@ -5,7 +5,7 @@ from PIL import Image
 from pathlib import Path
 import numpy as np
 from grid import Grid
-from hl_finder import search_highline, hlheight, get_highline_mask, hlheight_over_trees
+from hl_finder import search_highline, hlheight, get_highline_mask
 from search_picture import get_search_picture
 import math
 from scipy.ndimage import maximum_filter, zoom

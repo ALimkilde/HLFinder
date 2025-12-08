@@ -11,17 +11,9 @@ import pandas as pd
 from search_picture import tree_in_the_way, get_distance_px_to_m
 from numba import njit
 from numba.typed import List
-from hl_plotter import get_score, hlheight, TREE_DIST
+from hl_plotter import get_score, hlheight
 
 import re
-
-# @njit
-# def hlheight(l):
-#     return 0.08 * l + 8
-
-@njit
-def hlheight_over_trees(l):
-    return 0.08 * l 
 
 import numpy as np
 from scipy.ndimage import maximum_filter
