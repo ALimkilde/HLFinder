@@ -167,7 +167,7 @@ def original_to_coarse_pixel(r, c, n, crop_px):
 
     return i, j
 
-def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
+def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt, pre_filt=False):
     """
     Crop and downsample an image by block aggregation.
     Adjusts crop_px upward so the final cropped image dimensions
@@ -210,10 +210,8 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
     H, W = arr.shape  # guaranteed multiples of n
 
     # ----- 4. Optional prefiltering -----
-    if filt == "mean":
+    if pre_filt:
         arr = maximum_filter(arr, size=(4, 4), mode='nearest')
-    elif filt != "max" and filt != "min":
-        raise ValueError("filt must be 'max' or 'mean'")
 
     # ----- 5. Block reshape and aggregation -----
     arr_blocks = arr.reshape(H // n, n, W // n, n)
@@ -222,6 +220,8 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt):
         out = arr_blocks.max(axis=(1, 3))
     elif filt == "min":
         out = arr_blocks.min(axis=(1, 3))
+    elif filt == "median":
+        out = np.median(arr_blocks, axis=(1, 3))
     else:
         out = arr_blocks.mean(axis=(1, 3))
 
@@ -267,10 +267,24 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
     padding = math.ceil(MAX_HL_LENGTH/(2*px_size_m))
     crop_px = tile_size_px - padding
 
-    out, n, crop_px, tile_size_m_out = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
+    out, n, crop_px, tile_size_m_out = coarsen_image(mosaic, 
+                                                     crop_px, 
+                                                     px_size_m, 
+                                                     px_size_m_output, 
+                                                     'median')
 
-    out_min_surface, _, _, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'min')
-    out_max_surface, _, _, _ = coarsen_image(mosaic_surface, crop_px, px_size_m, px_size_m_output, 'max')
+    out_min_surface, _, _, _ = coarsen_image(mosaic_surface, 
+                                             crop_px, 
+                                             px_size_m, 
+                                             px_size_m_output, 
+                                             'mean',
+                                             pre_filt = True)
+
+    out_max_surface, _, _, _ = coarsen_image(mosaic_surface, 
+                                             crop_px, 
+                                             px_size_m, 
+                                             px_size_m_output, 
+                                             'max')
 
     refpx_x, refpx_y = original_to_coarse_pixel(tile_size_px, 2*tile_size_px, n, crop_px)
 

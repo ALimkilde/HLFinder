@@ -34,12 +34,9 @@ def cluster_and_extract(
         "walkable":  lambda item: item[15],
         "hmean":     compute_hmean,
     }
-    print(f"metric_funcs: {metric_funcs}")
-    print(f'hmean metric_funcs: {"hmean" in metric_funcs}')
 
     # sanity filter
     keep = [k for k in keep if k in metric_funcs]
-    print(f"keep: {keep}")
 
     selected = []
     labels = np.asarray(labels)
@@ -50,7 +47,6 @@ def cluster_and_extract(
 
         # Find the best item for each metric requested
         for metric_name in keep:
-            print(f"metric_name: {metric_name}")
             key = metric_funcs[metric_name]
             best_idx = max(idxs, key=lambda i: key(results[i]))
             selected.append(results[best_idx])

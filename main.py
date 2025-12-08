@@ -160,10 +160,6 @@ def add_tile_row(df, search_pic, res):
     a2x, a2y = search_pic.get_coords(ra2, ca2)
 
     search_pic.im[rm,cm] = 100
-    print(f"rm: {rm}")
-    print(f"cm: {cm}")
-    print(f"midx: {midx}")
-    print(f"midy: {midy}")
     plt.imshow(search_pic.im)
     plt.show()
 
@@ -257,7 +253,7 @@ def process_task(args):
     #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h1, htree, hgoal, score 
     #      ) = r
 
-    #      d_m, terr, surf, anch = extract_line_profiles(search_pic.im, search_pic.im_min_surf, search_pic.im_anchor, r0, c0, r1, c1, px_size_m_output)
+    #      d_m, terr, surf, anch = extract_line_profiles(search_pic.im, search_pic.im_min_surf, search_pic.im_anchor, r0, c0, r1, c1, PX_SIZE_M_SEARCH)
         
     #      plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, min(h0,h1))
     
@@ -310,10 +306,10 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6187
-    north_max=6187
-    east_min=719
-    east_max=719
+    north_min=6165
+    north_max=6165
+    east_min=685
+    east_max=685
     outname="tmp"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
