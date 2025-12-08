@@ -17,7 +17,7 @@ from hl_plotter import extract_line_profiles, plot_line_profiles
 import re
 
 import config
-from config import MIN_HL_LENGTH, MAX_HL_LENGTH
+from config import MIN_HL_LENGTH, MAX_HL_LENGTH, PX_SIZE_M_SEARCH
 
 def filter_info_files(folder_path, H):
     """
@@ -224,33 +224,31 @@ def get_df_from_result(df, result, search_pic):
     return df
 
 def process_task(args):
-    (df, fld, H, px_size_m_output,
-     c_north, c_east) = args
+    (df, fld, H, c_north, c_east) = args
 
     # prepare search area
     search_pic = get_search_picture(
         fld,
         c_north,
         c_east,
-        px_size_m_output
+        PX_SIZE_M_SEARCH
     )
     if search_pic == None:
         return None
 
-    mask = get_highline_mask(search_pic.im, search_pic.im_anchor, px_size_m_output)
+    mask = get_highline_mask(search_pic.im, search_pic.im_anchor)
 
     # run detection
     result = search_highline(
         search_pic.im,
         search_pic.im_min_surf,
         search_pic.im_anchor,
-        px_size_m_output,
         H,
         mask
     )
 
     result =  cluster_and_extract(result, 
-                                  px_size_m_output, 
+                                  PX_SIZE_M_SEARCH, 
                                   radius=config.CLUSTER_RADIUS, 
                                   keep = config.KEEP_METRICS)
 
@@ -332,13 +330,12 @@ if __name__ == "__main__":
     tasks = []
     
     H = hlheight(MIN_HL_LENGTH)
-    px_size_m_output = 10
     
     coords = grid.get_highline_coords(H)
     
     for (c_north, c_east) in coords:
         tasks.append(
-            (df, fld, H, px_size_m_output, c_north, c_east)
+            (df, fld, H, c_north, c_east)
         )
 
 

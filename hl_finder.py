@@ -11,7 +11,7 @@ from hl_plotter import get_score, hlheight
 import numpy as np
 from scipy.ndimage import maximum_filter
 
-from config import MAX_HL_LENGTH, MIN_HL_LENGTH
+from config import MAX_HL_LENGTH, MIN_HL_LENGTH, PX_SIZE_M_SEARCH
 
 def max_quadrants_1(im, dist):
     """
@@ -64,7 +64,7 @@ def max_quadrants_2(im, dist):
 
     return Q2, Q4
 
-def improved_max_masks(im_midpoint, im_anchor, px_size_m):
+def improved_max_masks(im_midpoint, im_anchor):
 
      num = 7
 
@@ -76,7 +76,7 @@ def improved_max_masks(im_midpoint, im_anchor, px_size_m):
          lmin = l
          lmax = lengths[i+1]
          hgoal = hlheight(lmin)
-         n_extended = math.ceil(lmax/(2*px_size_m))
+         n_extended = math.ceil(lmax/(2*PX_SIZE_M_SEARCH))
          Q1, Q3 = max_quadrants_1(im_anchor, n_extended)
          Q2, Q4 = max_quadrants_2(im_anchor, n_extended)
 
@@ -122,8 +122,8 @@ def improved_max_masks(im_midpoint, im_anchor, px_size_m):
 
 
 
-def get_extended_max_mask(im, px_size_m, max_hl_length, H, filter_type):
-     n_extended = math.ceil(max_hl_length/(2*px_size_m))
+def get_extended_max_mask(im, H, filter_type):
+     n_extended = math.ceil(MAX_HL_LENGTH/(2*PX_SIZE_M_SEARCH))
     
      if (filter_type == 'max'):
          extmax = maximum_filter(im, size=(n_extended, n_extended), mode='nearest')
@@ -137,9 +137,9 @@ def get_extended_max_mask(im, px_size_m, max_hl_length, H, filter_type):
 
      return mask
 
-def get_slope_mask(im, px_size_m):
+def get_slope_mask(im):
     gx,gy = np.gradient(im, 4)
-    tmp = np.sqrt(gx**2 + gy**2)/px_size_m
+    tmp = np.sqrt(gx**2 + gy**2)/PX_SIZE_M_SEARCH
     tmp = maximum_filter(tmp, size=(2, 2), mode='nearest')
 
     acc_slope = 0.04
@@ -166,10 +166,10 @@ def plot_masks(masks):
     plt.tight_layout()
     plt.show()
 
-def get_highline_mask(im_midpoint, im_anchor, px_size_m):
-    extmax_mask = improved_max_masks(im_midpoint, im_anchor, px_size_m)
+def get_highline_mask(im_midpoint, im_anchor):
+    extmax_mask = improved_max_masks(im_midpoint, im_anchor)
 
-    slope_mask = get_slope_mask(im_anchor, px_size_m)
+    slope_mask = get_slope_mask(im_anchor)
 
     mask = np.logical_and(slope_mask, extmax_mask)
 
@@ -184,13 +184,13 @@ def get_highline_mask(im_midpoint, im_anchor, px_size_m):
     return mask
 
 @njit
-def search_highline(im, im_min_surf, im_anchor, px_size_m, H, mask):
+def search_highline(im, im_min_surf, im_anchor, H, mask):
 
     result = List()
 
     nx, ny = im.shape
     
-    n_extended = math.ceil(MAX_HL_LENGTH/(px_size_m))
+    n_extended = math.ceil(MAX_HL_LENGTH/(PX_SIZE_M_SEARCH))
 
     for r0 in range(0, nx):
         for c0 in range(0, ny):
@@ -207,7 +207,7 @@ def search_highline(im, im_min_surf, im_anchor, px_size_m, H, mask):
                 for r in range(r0, rmax):
                     for c in range(cmin, cmax):
                         if mask[r,c]:
-                            l = get_distance_px_to_m(px_size_m,r0,c0,r,c)
+                            l = get_distance_px_to_m(PX_SIZE_M_SEARCH,r0,c0,r,c)
                             if (l<MIN_HL_LENGTH):
                                 continue
 
@@ -227,7 +227,7 @@ def search_highline(im, im_min_surf, im_anchor, px_size_m, H, mask):
                             h_min = min(h, h0)
 
                             if(h_min > h_mid + hgoal):
-                                score, do_not_hit_tree, hmean_terr, hmean_surf, walkable = get_score(im, im_min_surf, r0, c0, r, c, px_size_m, h_min, l)
+                                score, do_not_hit_tree, hmean_terr, hmean_surf, walkable = get_score(im, im_min_surf, r0, c0, r, c, PX_SIZE_M_SEARCH, h_min, l)
                                 
                                 # if (not tree_in_way):
                                 if (score>0.4 and do_not_hit_tree):
