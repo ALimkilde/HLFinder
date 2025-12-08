@@ -1,22 +1,17 @@
 import sys
-import csv
 import matplotlib.pyplot as plt
-from PIL import Image
-from pathlib import Path
 import numpy as np
-from grid import Grid
 import math
 from scipy.ndimage import maximum_filter, minimum_filter
-import pandas as pd
 from search_picture import tree_in_the_way, get_distance_px_to_m
 from numba import njit
 from numba.typed import List
 from hl_plotter import get_score, hlheight
 
-import re
-
 import numpy as np
 from scipy.ndimage import maximum_filter
+
+from config import MAX_HL_LENGTH, MIN_HL_LENGTH
 
 def max_quadrants_1(im, dist):
     """
@@ -69,11 +64,11 @@ def max_quadrants_2(im, dist):
 
     return Q2, Q4
 
-def improved_max_masks(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length):
+def improved_max_masks(im_midpoint, im_anchor, px_size_m):
 
      num = 7
 
-     lengths = np.linspace(min_hl_length, max_hl_length, num)
+     lengths = np.linspace(MIN_HL_LENGTH, MAX_HL_LENGTH, num)
 
      mask = np.full(im_midpoint.shape, False)
 
@@ -171,8 +166,8 @@ def plot_masks(masks):
     plt.tight_layout()
     plt.show()
 
-def get_highline_mask(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length, H):
-    extmax_mask = improved_max_masks(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_length)
+def get_highline_mask(im_midpoint, im_anchor, px_size_m):
+    extmax_mask = improved_max_masks(im_midpoint, im_anchor, px_size_m)
 
     slope_mask = get_slope_mask(im_anchor, px_size_m)
 
@@ -189,13 +184,13 @@ def get_highline_mask(im_midpoint, im_anchor, px_size_m, min_hl_length, max_hl_l
     return mask
 
 @njit
-def search_highline(im, im_min_surf, im_anchor, px_size_m, min_hl_length, max_hl_length, H, mask):
+def search_highline(im, im_min_surf, im_anchor, px_size_m, H, mask):
 
     result = List()
 
     nx, ny = im.shape
     
-    n_extended = math.ceil(max_hl_length/(px_size_m))
+    n_extended = math.ceil(MAX_HL_LENGTH/(px_size_m))
 
     for r0 in range(0, nx):
         for c0 in range(0, ny):
@@ -213,10 +208,10 @@ def search_highline(im, im_min_surf, im_anchor, px_size_m, min_hl_length, max_hl
                     for c in range(cmin, cmax):
                         if mask[r,c]:
                             l = get_distance_px_to_m(px_size_m,r0,c0,r,c)
-                            if (l<min_hl_length):
+                            if (l<MIN_HL_LENGTH):
                                 continue
 
-                            if (l>max_hl_length):
+                            if (l>MAX_HL_LENGTH):
                                 continue
 
                             hgoal = hlheight(l)

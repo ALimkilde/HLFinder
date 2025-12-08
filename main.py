@@ -16,6 +16,9 @@ from numba import jit
 from hl_plotter import extract_line_profiles, plot_line_profiles
 import re
 
+import config
+from config import MIN_HL_LENGTH, MAX_HL_LENGTH
+
 def filter_info_files(folder_path, H):
     """
     Processes all .info files in a folder and returns a list of base names
@@ -221,7 +224,7 @@ def get_df_from_result(df, result, search_pic):
     return df
 
 def process_task(args):
-    (df, fld, min_hl_length, max_hl_length, H, px_size_m_output,
+    (df, fld, H, px_size_m_output,
      c_north, c_east) = args
 
     # prepare search area
@@ -229,13 +232,12 @@ def process_task(args):
         fld,
         c_north,
         c_east,
-        max_hl_length,
         px_size_m_output
     )
     if search_pic == None:
         return None
 
-    mask = get_highline_mask(search_pic.im, search_pic.im_anchor, px_size_m_output, min_hl_length, max_hl_length, H)
+    mask = get_highline_mask(search_pic.im, search_pic.im_anchor, px_size_m_output)
 
     # run detection
     result = search_highline(
@@ -243,13 +245,14 @@ def process_task(args):
         search_pic.im_min_surf,
         search_pic.im_anchor,
         px_size_m_output,
-        min_hl_length,
-        max_hl_length,
         H,
         mask
     )
 
-    result =  cluster_and_extract(result, px_size_m_output, radius=50)
+    result =  cluster_and_extract(result, 
+                                  px_size_m_output, 
+                                  radius=config.CLUSTER_RADIUS, 
+                                  keep = config.KEEP_METRICS)
 
     # for r in result:
     #      (
@@ -266,7 +269,7 @@ def process_task(args):
     return df
 
 
-def run_tasks(tasks, ranges, use_parallel=True):
+def run_tasks(tasks, use_parallel=True):
     all_results = []
 
     if use_parallel:
@@ -325,30 +328,21 @@ if __name__ == "__main__":
         sys.exit()
 
 
-    ranges = pd.DataFrame([
-        {"min_hl_length": 50, "max_hl_length": 1000, "pxsize": 10}
-    ])
-
     df = create_hl_dataframe()           # read-only in workers
     tasks = []
     
-    for _, r in ranges.iterrows():
-        min_hl_length = r["min_hl_length"]
-        max_hl_length = r["max_hl_length"]
-        H = hlheight(min_hl_length)
-        px_size_m_output = r["pxsize"]
+    H = hlheight(MIN_HL_LENGTH)
+    px_size_m_output = 10
     
-        coords = grid.get_highline_coords(H)
+    coords = grid.get_highline_coords(H)
     
-        for (c_north, c_east) in coords:
-            tasks.append(
-                (df, fld,
-                 min_hl_length, max_hl_length, H, px_size_m_output,
-                 c_north, c_east)
-            )
+    for (c_north, c_east) in coords:
+        tasks.append(
+            (df, fld, H, px_size_m_output, c_north, c_east)
+        )
 
 
-    all_results = run_tasks(tasks, ranges, use_parallel=True)
+    all_results = run_tasks(tasks, use_parallel=True)
     if (len(all_results) == 0):
         sys.exit()
 

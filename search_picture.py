@@ -8,7 +8,7 @@ import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
-from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION
+from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
@@ -246,9 +246,9 @@ def coarse_pixel_source_range(i, j, n, crop_px):
     return row_start, row_end, col_start, col_end
 
 
-def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
+def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
 
-    max_hl_length_in_km = math.ceil(max_hl_length/1000)
+    max_hl_length_in_km = math.ceil(MAX_HL_LENGTH/1000)
     px_size_m = float(tile_size_meter)/float(tile_size_px)
 
     north_min = north - max_hl_length_in_km
@@ -264,7 +264,7 @@ def get_search_picture(folder_path, north, east, max_hl_length, px_size_m_output
     if mosaic is None:
         return None
 
-    padding = math.ceil(max_hl_length/(2*px_size_m))
+    padding = math.ceil(MAX_HL_LENGTH/(2*px_size_m))
     crop_px = tile_size_px - padding
 
     out, n, crop_px, tile_size_m_out = coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, 'max')
