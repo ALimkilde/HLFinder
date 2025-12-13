@@ -8,7 +8,7 @@ import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
-from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH
+from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH, PRE_FILT_SIZE, PADDING_M
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
@@ -42,9 +42,9 @@ class SearchPicture:
         return self.im.shape
 
     def get_coords(self, r, c):
-        diff = np.subtract((c,r), self.ref_px)
-        diff[1] = -diff[1] 
-        diff = np.array((diff[0],diff[1]))
+        diff = np.subtract((r,c), self.ref_px)
+        diff[0] = -diff[0] 
+        diff = np.array((diff[1],diff[0]))
         new_coor = np.add(self.ref_coords,diff*self.px_size_m)
         return tuple(new_coor)
 
@@ -87,8 +87,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-            img = np.array(Image.open(path).convert("L"))
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            # img = np.array(Image.open(path).convert("L"))
 
 
             # Compute placement in output
@@ -120,8 +120,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            # img = np.array(Image.open(path).convert("L"))
             img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            # img = np.array(Image.open(path).convert("L"))
 
             # Compute placement in output
             col = east - east_min
@@ -161,6 +161,10 @@ def original_to_coarse_pixel(r, c, n, crop_px):
     if r < crop_px or c < crop_px:
         return None, None
 
+    remainder_r = (r - crop_px) % n
+
+    remainder_c = (c - crop_px) % n
+
     # Coarse pixel indices (floor division)
     i = (r - crop_px) // n
     j = (c - crop_px) // n
@@ -196,11 +200,25 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt, pre_filt=F
         remainder = interior % n
         if remainder == 0:
             return crop_px
-        needed = n - remainder
-        return crop_px - needed // 2
+    
+        # Make the new interior divisible by n by reducing the total interior
+        new_interior = interior - remainder + n
+
+        if (size - new_interior) % 2 == 1:
+            if (n % 2 == 1):
+               new_interior = new_interior + n
+            else:
+               new_interior = new_interior + 2*2*n
 
 
-    crop_px_new = max(
+    
+        # Corresponding crop per side (must be symmetric)
+        new_crop = (size - new_interior) // 2 
+    
+        return new_crop
+
+
+    crop_px_new = min(
         adjust_crop(crop_px, H0),
         adjust_crop(crop_px, W0)
     )
@@ -211,7 +229,7 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt, pre_filt=F
 
     # ----- 4. Optional prefiltering -----
     if pre_filt:
-        arr = maximum_filter(arr, size=(4, 4), mode='nearest')
+        arr = maximum_filter(arr, size=(PRE_FILT_SIZE, PRE_FILT_SIZE), mode='nearest')
 
     # ----- 5. Block reshape and aggregation -----
     arr_blocks = arr.reshape(H // n, n, W // n, n)
@@ -228,6 +246,7 @@ def coarsen_image(mosaic, crop_px, px_size_m, px_size_m_output, filt, pre_filt=F
     # ----- 6. Compute output physical size -----
     Hc, Wc = out.shape
     size_m = (Hc * px_size_m_output, Wc * px_size_m_output)
+    true_px_size_m = n * px_size_m
 
     return out, n, crop_px_new, size_m
 
@@ -258,20 +277,23 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
 
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
     # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
+
+    refpx_row_in = 2*tile_size_px 
+    refpx_col_in = tile_size_px
  
     mosaic, mosaic_surface = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
 
     if mosaic is None:
         return None
 
-    padding = math.ceil(MAX_HL_LENGTH/(2*px_size_m))
+    padding = math.ceil(PADDING_M/px_size_m)
     crop_px = tile_size_px - padding
 
-    out, n, crop_px, tile_size_m_out = coarsen_image(mosaic, 
+    out, n, crop_px_new, tile_size_m_out = coarsen_image(mosaic, 
                                                      crop_px, 
                                                      px_size_m, 
                                                      px_size_m_output, 
-                                                     'median')
+                                                     'mean')
 
     out_min_surface, _, _, _ = coarsen_image(mosaic_surface, 
                                              crop_px, 
@@ -286,46 +308,84 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
                                              px_size_m_output, 
                                              'max')
 
-    refpx_x, refpx_y = original_to_coarse_pixel(tile_size_px, 2*tile_size_px, n, crop_px)
+    refpx_row, refpx_col = original_to_coarse_pixel(refpx_row_in,
+                                                refpx_col_in, 
+                                                n, crop_px_new)
+    # print(f"refpx_row: {refpx_row}")
+    # print(f"refpx_col: {refpx_col}")
+    # print(f"n: {n}")
+
+    # ref2x, ref2y = original_to_coarse_pixel(tile_size_px,
+    #                                         tile_size_px, 
+    #                                         n, crop_px_new)
+
+    # ref3row, ref3col = original_to_coarse_pixel(tile_size_px,
+    #                                         1.5*tile_size_px, 
+    #                                         n, crop_px_new)
+
+    # ref4x, ref4y = original_to_coarse_pixel(2*tile_size_px,
+    #                                         2*tile_size_px, 
+    #                                         n, crop_px_new)
+
+
+
 
     nout,mout = out.shape
 
-    sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_x,refpx_y),(east,north),px_size_m_output,tile_size_m_out)
+    sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_row,refpx_col),(east,north),px_size_m_output,tile_size_m_out)
+
+    # print("========== 1 ==========")
+    # print(f"crop_px_new: {crop_px_new}")
+    # print(f"nout: {nout}")
+    # print(f"mout: {mout}")
+    # r = refpx_row - math.ceil(1000/px_size_m_output)
+    # c = refpx_col + math.ceil(500/px_size_m_output)
+    # print(f"r: {r}")
+    # print(f"c: {c}")
+    # utmx, utmy = sp.get_coords(r, c)
+    # print(f"utm: {utmx} {utmy}")
+    # print(f"out[r, c]: {out[r, c]}")
+    # print("=======================")
+
+    # print("========== 2 ==========")
+    # r = ref2y
+    # c = ref2x
+    # print(f"r: {r}")
+    # print(f"c: {c}")
+    # utmx, utmy = sp.get_coords(r, c)
+    # print(f"utm: {utmx} {utmy}")
+    # print(f"out[r, c]: {out[r, c]}")
+    # print("=======================")
+
+    # print("========== 3 ==========")
+    # r = int(ref3row)
+    # c = int(ref3col)
+    # print(f"r: {r}")
+    # print(f"c: {c}")
+    # utmx, utmy = sp.get_coords(r, c)
+    # print(f"utm: {utmx} {utmy}")
+    # print(f"out[r, c]: {out[r, c]}")
+    # print("=======================")
+
+    # print("========== 4 ==========")
+    # r = ref4y
+    # c = ref4x
+    # print(f"r: {r}")
+    # print(f"c: {c}")
+    # utmx, utmy = sp.get_coords(r, c)
+    # print(f"utm: {utmx} {utmy}")
+    # print(f"out[r, c]: {out[r, c]}")
+    # print("=======================")
+
+    # out[r,c] = 100
+    # add = 40
+    # plt.imshow(out[r-add:r+add, c-add:c+add])
+    # plt.imshow(out)
+    # plt.show()
+
+    # sys.exit()
     
-    plt.imshow(out)
-    plt.show()
     return sp
-
-@njit
-def tree_in_the_way(im, im_surf, rm, cm, r0, c0, r, c, hgoal, h_min, h_mid):
-    if (im_surf is None):
-        # print("No surf data; tree not in the way...")
-        return False, h_mid
-
-    out = False
-
-    h_tree = im_surf[rm, cm]
-    out = (not h_min > h_tree + hgoal) or out
-    if (out):
-        # print(f"On RM, CM: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-        return out, h_tree
-
-    rm4, cm4 = (rm+r0)//2, (cm+c0)//2
-    h_tree = im_surf[rm4, cm4]
-    out = (not h_min > h_tree + (hgoal - 8)/2) or out
-    if (out):
-        # print(f"On RM41, CM41: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-        return out, h_tree
-
-    rm4, cm4 = (rm+r)//2, (cm+c)//2
-    h_tree = im_surf[rm4, cm4]
-    out = (not h_min > h_tree + (hgoal-8)/2) or out
-    if (out):
-        # print(f"On RM42, CM42: Tree in the way. Height terrain: {h_min - h_mid}. Height surface: {h_min - h_tree}")
-        return out, h_tree
-
-    return out, h_tree
-
 
 @njit
 def get_distance_px_to_m(px_size_m, x1, y1, x2, y2):

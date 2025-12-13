@@ -28,7 +28,6 @@ def cluster_and_extract(
          score, hmean_terr, hmean_surf, walkable) = item
         return min(hmean_terr, hmean_surf)
 
-    print(f"keep: {keep}")
     metric_funcs = {
         "score":     lambda item: item[12],
         "walkable":  lambda item: item[15],
@@ -47,8 +46,8 @@ def cluster_and_extract(
 
         # Find the best item for each metric requested
         for metric_name in keep:
-            key = metric_funcs[metric_name]
-            best_idx = max(idxs, key=lambda i: key(results[i]))
+            metric_func = metric_funcs[metric_name]
+            best_idx = max(idxs, key=lambda i: metric_func(results[i]))
             selected.append(results[best_idx])
 
     return selected

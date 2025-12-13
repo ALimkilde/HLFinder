@@ -159,9 +159,10 @@ def add_tile_row(df, search_pic, res):
     a1x, a1y = search_pic.get_coords(ra1, ca1)
     a2x, a2y = search_pic.get_coords(ra2, ca2)
 
-    search_pic.im[rm,cm] = 100
-    plt.imshow(search_pic.im)
-    plt.show()
+    # search_pic.im[rm,cm] = 50
+    # search_pic.im[ra1,ca1] = 150
+    # search_pic.im[ra2,ca2] = 150
+    # plt.imshow(search_pic.im)
 
     new_row = {
         "midx": midx,    # pixel index (x)
@@ -234,6 +235,7 @@ def process_task(args):
 
     mask = get_highline_mask(search_pic.im, search_pic.im_anchor)
 
+
     # run detection
     result = search_highline(
         search_pic.im,
@@ -250,12 +252,35 @@ def process_task(args):
 
     # for r in result:
     #      (
-    #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h1, htree, hgoal, score 
+    #         rm, cm, r0, c0, r1, c1, h_min, l, h_mid, h0, h1, hgoal, score, hmean_terr, hmear_surf, walkable
     #      ) = r
 
-    #      d_m, terr, surf, anch = extract_line_profiles(search_pic.im, search_pic.im_min_surf, search_pic.im_anchor, r0, c0, r1, c1, PX_SIZE_M_SEARCH)
+         # print(f"(rm,cm): {(rm,cm)}")
+         # print(f"(r0,c0): {(r0,c0)}")
+         # print(f"(r1,c1): {(r1,c1)}")
+
+         # midx, midy = search_pic.get_coords(rm, cm)
+         # a1x, a1y = search_pic.get_coords(r0, c0)
+         # a2x, a2y = search_pic.get_coords(r1, c1)
+
+         # print(f"(midx, midy): {(midx, midy)}")
+         # # print(f"(a1x, a1y): {(a1x, a1y)}")
+         # # print(f"(a2x, a2y): {(a2x, a2y)}")
+
+         # from pyproj import Transformer
+         # # Prepare UTM→WGS84 transformer
+         # utm_zone = 32
+         # hemisphere = "north"
+         # utm_crs = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+         # transformer = Transformer.from_crs(utm_crs, "EPSG:4326", always_xy=True)
+         # def utm_to_latlon(x, y):
+         #     lon, lat = transformer.transform(x, y)
+         #     return lat, lon
+         # print(f"utm_to_latlon(midx,midy): {utm_to_latlon(midx,midy)}")
+
+         # d_m, terr, surf, anch = extract_line_profiles(search_pic.im, search_pic.im_min_surf, search_pic.im_anchor, r0, c0, r1, c1, PX_SIZE_M_SEARCH)
         
-    #      plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, min(h0,h1))
+         # plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, min(h0,h1))
     
 
     df = get_df_from_result(df, result, search_pic)
@@ -306,11 +331,16 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6165
-    north_max=6165
-    east_min=685
-    east_max=685
+    north_min=6178
+    north_max=6179
+    east_min=531
+    east_max=533
     outname="tmp"
+    # north_min=6165
+    # north_max=6165
+    # east_min=685
+    # east_max=685
+    # outname="tmp"
 
     # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
     # tile_size_km=1
@@ -335,12 +365,14 @@ if __name__ == "__main__":
         )
 
 
-    all_results = run_tasks(tasks, use_parallel=True)
+    all_results = run_tasks(tasks, use_parallel=False)
     if (len(all_results) == 0):
         sys.exit()
 
+    plt.show()
     # df = pd.concat(all_results, ignore_index=True)
     df = pd.concat(all_results, ignore_index=False)
+    save_HL_map(df, f"{outname}.html", score_threshold=0.0)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
     save_HL_map(df, f"{outname}.html", score_threshold=0.0)

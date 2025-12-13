@@ -16,6 +16,9 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     # Create color scale by height
     min_h, max_h = df["hmean"].min(), df["hmean"].max()
     max_h = min(max_h, 15)
+
+    min_w, max_w = df["walkable_length"].min(), df["walkable_length"].max()
+    # max_w = min(max_h, 15)
     
     min_score, max_score = df["score"].min(), df["score"].max()
     min_score = max(max(min_score, 0), score_threshold)
@@ -49,6 +52,13 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
     def hmean_color(h):
         t = (h - min_h) / (max_h - min_h + 1e-9)
+        # blue → red gradient
+        r = int(255 * t)
+        b = int(255 * (1 - t))
+        return f"rgb({r},0,{b})"
+
+    def walkable_color(w):
+        t = (w - min_w) / (max_w - min_w + 1e-9)
         # blue → red gradient
         r = int(255 * t)
         b = int(255 * (1 - t))
@@ -92,8 +102,13 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         skrfoto_link_a2 = f'https://skraafoto.dataforsyningen.dk/?center={row["a2x"]}%2C{row["a2y"]}'
     
         popup_html = f"""
-        <b>Center UTM:</b><br>
-    {row['midx']} {row['midy']}<br><br>
+        <b>Center UTM:</b><br> {row['midx']} {row['midy']}<br>
+        <b>Anchor 1 UTM:</b><br> {row['a1x']} {row['a1y']}<br>
+        <b>Anchor 2 UTM:</b><br> {row['a2x']} {row['a2y']}<br><br>
+
+        <b>hmid:</b> {row['hmid']:.1f}<br>
+        <b>ha1:</b> {row['ha1']:.1f}<br>
+        <b>ha2:</b> {row['ha2']:.1f}<br><br>
     
         <b>Length:</b> {row['length']:.1f}<br>
         <b>Height:</b> {row['height']:.1f}<br>
@@ -119,7 +134,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
                 "midy": float(row["midy"]),
                 "length": float(row["length"]),
                 "height": float(row["height"]),
-                "color": hmean_color(row["hmean"]),
+                "color": walkable_color(row["walkable_length"]),
                 # "color": score_color(row["score"]),
                 "popup": popup_html
             },
