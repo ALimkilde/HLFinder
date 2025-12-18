@@ -32,6 +32,7 @@ def cluster_and_extract(
         "score":     lambda item: item[12],
         "walkable":  lambda item: item[15],
         "hmean":     compute_hmean,
+        "height":     lambda item: item[7],
     }
 
     # sanity filter

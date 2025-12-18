@@ -8,7 +8,40 @@ import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
 
-from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH, PRE_FILT_SIZE, PADDING_M
+from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH, PRE_FILT_SIZE, PADDING_M, REGION, STEP_SIZE, COOR_SIZE
+import re
+
+
+def load_dem_png(path):
+    """
+    Loads a uint16 PNG DEM and applies scale factor encoded in filename.
+
+    Filename format:
+        *_s0p1.png  -> scale = 0.1
+        *_s1.png    -> scale = 1.0
+        no suffix   -> scale = 1.0 (fallback)
+    """
+
+    # Read image (uint16 preserved)
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise IOError(f"Could not read image: {path}")
+
+    img = img.astype(np.float32)
+
+    # Extract scale from filename
+    match = re.search(r"_s(\d+(?:p\d+)?)", path)
+    if match:
+        scale_str = match.group(1).replace("p", ".")
+        scale = float(scale_str)
+    else:
+        scale = 1.0  # fallback
+
+    if scale <= 0 or scale > 10:
+        raise ValueError(f"Suspicious scale factor: {scale}")
+
+    img = img * scale
+    return img
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
@@ -31,7 +64,7 @@ class SearchPicture:
             self.im_anchor = get_anchors(im, im_max_surf)
 
         self.ref_px = ref_px
-        self.ref_coords = np.array(ref_coords)*1000
+        self.ref_coords = np.array(ref_coords)*COOR_SIZE
         self.px_size_m = px_size_m
         self.tile_size_m = tile_size_m
 
@@ -48,7 +81,7 @@ class SearchPicture:
         new_coor = np.add(self.ref_coords,diff*self.px_size_m)
         return tuple(new_coor)
 
-def combine_tiles(folder_path, north_min, north_max, east_min, east_max, 
+def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
                   tile_size_km=1, tile_px=2500):
     """
     Combines grayscale tiles (DTM_1km_<north>_<east>.png) into one large
@@ -67,8 +100,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
 
     # Calculate output dimensions
-    n_rows = north_max - north_min + 1
-    n_cols = east_max - east_min + 1
+    n_rows = (north_max - north_min)//STEP_SIZE + 1
+    n_cols = (east_max - east_min)//STEP_SIZE + 1
     out_h = n_rows * tile_px
     out_w = n_cols * tile_px
 
@@ -77,23 +110,30 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
 
     tiles_found = False
 
-    for north in range(north_min, north_max + 1):
-        for east in range(east_min, east_max + 1):
-            filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
+    for north in range(north_min, north_max + 1, STEP_SIZE):
+        for east in range(east_min, east_max + 1, STEP_SIZE):
+            if REGION == "Denmark":
+                filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
+            else:
+                filename = f"DTM/{north}_{east}_25.png"
+
             path = f"{folder_path}/{filename}"
+            # print(f"path: {path}")
             if not os.path.exists(path):
+                # print("DOESNT EXISTS")
                 continue
 
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            img = load_dem_png(path)
+            # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
             # img = np.array(Image.open(path).convert("L"))
 
 
             # Compute placement in output
-            col = east - east_min
-            row = north_max - north  # north decreases downward
+            col = (east - east_min)//STEP_SIZE
+            row = (north_max - north)//STEP_SIZE  # north decreases downward
             y0 = row * tile_px
             x0 = col * tile_px
 
@@ -107,9 +147,13 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     tiles_found = False
 
     # Look for Surface data
-    for north in range(north_min, north_max + 1):
-        for east in range(east_min, east_max + 1):
-            filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
+    for north in range(north_min, north_max + 1, STEP_SIZE):
+        for east in range(east_min, east_max + 1, STEP_SIZE):
+            if REGION == "Denmark":
+                filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
+            else:
+                filename = f"DSM/{north}_{east}_25_s0p1.png"
+
             path = f"{folder_path}/{filename}"
             # print(f"search for {path}")
             if not os.path.exists(path):
@@ -120,7 +164,8 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
             tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            img = load_dem_png(path)
+            # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
             # img = np.array(Image.open(path).convert("L"))
 
             # Compute placement in output
@@ -267,13 +312,13 @@ def coarse_pixel_source_range(i, j, n, crop_px):
 
 def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_meter=1000, tile_size_px=2500):
 
-    max_hl_length_in_km = math.ceil(MAX_HL_LENGTH/1000)
+    max_hl_length_in_tiles = math.ceil(MAX_HL_LENGTH/tile_size_meter)
     px_size_m = float(tile_size_meter)/float(tile_size_px)
 
-    north_min = north - max_hl_length_in_km
-    north_max = north + max_hl_length_in_km
-    east_min = east - max_hl_length_in_km
-    east_max = east + max_hl_length_in_km
+    north_min = north - max_hl_length_in_tiles*STEP_SIZE
+    north_max = north + max_hl_length_in_tiles*STEP_SIZE
+    east_min = east - max_hl_length_in_tiles*STEP_SIZE
+    east_max = east + max_hl_length_in_tiles*STEP_SIZE
 
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
     # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
@@ -295,96 +340,32 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
                                                      px_size_m_output, 
                                                      'mean')
 
-    out_min_surface, _, _, _ = coarsen_image(mosaic_surface, 
-                                             crop_px, 
-                                             px_size_m, 
-                                             px_size_m_output, 
-                                             'mean',
-                                             pre_filt = True)
+    if mosaic_surface is not None:
+        out_min_surface, _, _, _ = coarsen_image(mosaic_surface, 
+                                                 crop_px, 
+                                                 px_size_m, 
+                                                 px_size_m_output, 
+                                                 'mean',
+                                                 pre_filt = True)
 
-    out_max_surface, _, _, _ = coarsen_image(mosaic_surface, 
-                                             crop_px, 
-                                             px_size_m, 
-                                             px_size_m_output, 
-                                             'max')
+        out_max_surface, _, _, _ = coarsen_image(mosaic_surface, 
+                                                 crop_px, 
+                                                 px_size_m, 
+                                                 px_size_m_output, 
+                                                 'max')
+    else:
+        out_min_surface = None
+        out_max_surface = None
 
     refpx_row, refpx_col = original_to_coarse_pixel(refpx_row_in,
                                                 refpx_col_in, 
                                                 n, crop_px_new)
-    # print(f"refpx_row: {refpx_row}")
-    # print(f"refpx_col: {refpx_col}")
-    # print(f"n: {n}")
-
-    # ref2x, ref2y = original_to_coarse_pixel(tile_size_px,
-    #                                         tile_size_px, 
-    #                                         n, crop_px_new)
-
-    # ref3row, ref3col = original_to_coarse_pixel(tile_size_px,
-    #                                         1.5*tile_size_px, 
-    #                                         n, crop_px_new)
-
-    # ref4x, ref4y = original_to_coarse_pixel(2*tile_size_px,
-    #                                         2*tile_size_px, 
-    #                                         n, crop_px_new)
-
-
 
 
     nout,mout = out.shape
 
     sp = SearchPicture(out, out_min_surface, out_max_surface, (refpx_row,refpx_col),(east,north),px_size_m_output,tile_size_m_out)
 
-    # print("========== 1 ==========")
-    # print(f"crop_px_new: {crop_px_new}")
-    # print(f"nout: {nout}")
-    # print(f"mout: {mout}")
-    # r = refpx_row - math.ceil(1000/px_size_m_output)
-    # c = refpx_col + math.ceil(500/px_size_m_output)
-    # print(f"r: {r}")
-    # print(f"c: {c}")
-    # utmx, utmy = sp.get_coords(r, c)
-    # print(f"utm: {utmx} {utmy}")
-    # print(f"out[r, c]: {out[r, c]}")
-    # print("=======================")
-
-    # print("========== 2 ==========")
-    # r = ref2y
-    # c = ref2x
-    # print(f"r: {r}")
-    # print(f"c: {c}")
-    # utmx, utmy = sp.get_coords(r, c)
-    # print(f"utm: {utmx} {utmy}")
-    # print(f"out[r, c]: {out[r, c]}")
-    # print("=======================")
-
-    # print("========== 3 ==========")
-    # r = int(ref3row)
-    # c = int(ref3col)
-    # print(f"r: {r}")
-    # print(f"c: {c}")
-    # utmx, utmy = sp.get_coords(r, c)
-    # print(f"utm: {utmx} {utmy}")
-    # print(f"out[r, c]: {out[r, c]}")
-    # print("=======================")
-
-    # print("========== 4 ==========")
-    # r = ref4y
-    # c = ref4x
-    # print(f"r: {r}")
-    # print(f"c: {c}")
-    # utmx, utmy = sp.get_coords(r, c)
-    # print(f"utm: {utmx} {utmy}")
-    # print(f"out[r, c]: {out[r, c]}")
-    # print("=======================")
-
-    # out[r,c] = 100
-    # add = 40
-    # plt.imshow(out[r-add:r+add, c-add:c+add])
-    # plt.imshow(out)
-    # plt.show()
-
-    # sys.exit()
-    
     return sp
 
 @njit
@@ -392,3 +373,14 @@ def get_distance_px_to_m(px_size_m, x1, y1, x2, y2):
     dist = math.sqrt((x1-x2)**2 + (y1-y2)**2)
 
     return dist*px_size_m
+
+if __name__ == "__main__":
+    path = sys.argv[1]
+
+    img = load_dem_png(path)
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(img)
+    plt.title(f"loaded DEM")
+    plt.axis('off')
+    plt.show()

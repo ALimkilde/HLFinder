@@ -18,6 +18,7 @@ TILE_SIZE = 1000  # 1×1 km
 
 # Regex to match DTM_1km_6101_511.png or DSM_...
 pattern = re.compile(r"D[TS]M_1km_(\d+)_(\d+)\.png")
+pattern_sweref = re.compile(r"(\d+)_(\d+)_\d+\.tif")
 
 # ------------------------------
 # 1. Read tiles
@@ -34,6 +35,18 @@ for filename in os.listdir(FOLDER):
 
         tiles.append((e, n))
 
+    match_sweref = pattern_sweref.match(filename)
+    if match_sweref:
+        northing = int(match_sweref.group(1))
+        easting = int(match_sweref.group(2))
+
+        n = northing * 100
+        e = easting * 100
+    
+        tiles.append((e, n))
+        use_sweref = True
+        TILE_SIZE = 2500  # 1×1 km
+
 print(f"Found {len(tiles)} tiles.")
 
 # ------------------------------
@@ -41,6 +54,8 @@ print(f"Found {len(tiles)} tiles.")
 # ------------------------------
 epsg_code = 32600 + UTM_ZONE
 transformer = Transformer.from_crs(epsg_code, 4326, always_xy=True)
+if use_sweref:
+    transformer = Transformer.from_crs(3006, 4326, always_xy=True)
 
 # ------------------------------
 # 3. Build polygons

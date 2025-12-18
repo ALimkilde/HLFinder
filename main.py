@@ -228,27 +228,30 @@ def process_task(args):
         fld,
         c_north,
         c_east,
-        PX_SIZE_M_SEARCH
+        PX_SIZE_M_SEARCH,
+        tile_size_meter = config.TILE_SIZE_M
     )
     if search_pic == None:
         return None
 
     mask = get_highline_mask(search_pic.im, search_pic.im_anchor)
 
+    if (np.all(mask == False)):
+        result = []
+    else:
+        # run detection
+        result = search_highline(
+            search_pic.im,
+            search_pic.im_min_surf,
+            search_pic.im_anchor,
+            H,
+            mask
+        )
 
-    # run detection
-    result = search_highline(
-        search_pic.im,
-        search_pic.im_min_surf,
-        search_pic.im_anchor,
-        H,
-        mask
-    )
-
-    result =  cluster_and_extract(result, 
-                                  PX_SIZE_M_SEARCH, 
-                                  radius=config.CLUSTER_RADIUS, 
-                                  keep = config.KEEP_METRICS)
+        result =  cluster_and_extract(result, 
+                                      PX_SIZE_M_SEARCH, 
+                                      radius=config.CLUSTER_RADIUS, 
+                                      keep = config.KEEP_METRICS)
 
     # for r in result:
     #      (
@@ -331,25 +334,16 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=6178
-    north_max=6179
-    east_min=531
-    east_max=533
-    outname="tmp"
-    # north_min=6165
-    # north_max=6165
-    # east_min=685
-    # east_max=685
-    # outname="tmp"
-
-    # mosaic = combine_tiles(fld, north_min, north_max, east_min, east_max)
-    # tile_size_km=1
-    # tile_px=2500
-    # write_meta_data_tiles(fld, north_min, north_max, east_min, east_max, tile_size_km, tile_px)
-    grid = Grid.from_info_files(fld,north_min, north_max, east_min, east_max)
-
-    if (grid == None):
-        sys.exit()
+    north_min=61400
+    north_max=66000
+    east_min=2600
+    east_max=7150
+    outname="southern_sweden"
+    # north_min=6140
+    # north_max=6190
+    # east_min=512
+    # east_max=552
+    # outname="Vejle_fine_search"
 
 
     df = create_hl_dataframe()           # read-only in workers
@@ -357,7 +351,20 @@ if __name__ == "__main__":
     
     H = hlheight(MIN_HL_LENGTH)
     
-    coords = grid.get_highline_coords(H)
+    if config.REGION == "Denmark":
+        grid = Grid.from_info_files(fld,north_min, north_max, east_min, east_max)
+
+        if (grid == None):
+            sys.exit()
+    
+        coords = grid.get_highline_coords(H)
+    else:
+        step = config.STEP_SIZE
+        coords = [
+            (n, e)
+            for n in range(north_min, north_max + step, step)
+            for e in range(east_min, east_max + step, step)
+        ]
     
     for (c_north, c_east) in coords:
         tasks.append(
@@ -365,17 +372,15 @@ if __name__ == "__main__":
         )
 
 
-    all_results = run_tasks(tasks, use_parallel=False)
+    all_results = run_tasks(tasks, use_parallel=True)
     if (len(all_results) == 0):
         sys.exit()
 
     plt.show()
-    # df = pd.concat(all_results, ignore_index=True)
     df = pd.concat(all_results, ignore_index=False)
-    save_HL_map(df, f"{outname}.html", score_threshold=0.0)
     df = df.drop_duplicates()
     df.to_csv(f"{outname}.csv", sep=' ')
-    save_HL_map(df, f"{outname}.html", score_threshold=0.0)
+    save_HL_map(df, f"{outname}.html", score_threshold=0.0, region = config.REGION)
 
 
 

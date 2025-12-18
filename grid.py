@@ -2,6 +2,7 @@ import numpy as np
 import re
 from pathlib import Path
 from scipy.ndimage import maximum_filter
+import config
 
 class Grid:
     """

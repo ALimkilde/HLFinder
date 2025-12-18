@@ -3,10 +3,12 @@ import folium
 from pyproj import Transformer
 import sys
 
-def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="north", hmean_threshold=0):
+def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="north", hmean_threshold=0, region="Denmark"):
     # Prepare UTM→WGS84 transformer
     utm_crs = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
     transformer = Transformer.from_crs(utm_crs, "EPSG:4326", always_xy=True)
+    if region == "Sweden":
+        transformer = Transformer.from_crs(3006, 4326, always_xy=True)
     
     def utm_to_latlon(x, y):
         lon, lat = transformer.transform(x, y)
@@ -14,8 +16,11 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     
     
     # Create color scale by height
-    min_h, max_h = df["hmean"].min(), df["hmean"].max()
-    max_h = min(max_h, 15)
+    min_hm, max_hm = df["hmean"].min(), df["hmean"].max()
+    max_hm = min(max_hm, 20)
+
+    min_h, max_h = df["height"].min(), df["height"].max()
+    max_h = min(max_h, 60)
 
     min_w, max_w = df["walkable_length"].min(), df["walkable_length"].max()
     # max_w = min(max_h, 15)
@@ -49,9 +54,16 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         b = int(255 * (1 - t))
         # print(f"rgb({r},0,{b})")
         return f"rgb({r},0,{b})"
-    
-    def hmean_color(h):
+
+    def h_color(h):
         t = (h - min_h) / (max_h - min_h + 1e-9)
+        # blue → red gradient
+        r = int(255 * t)
+        b = int(255 * (1 - t))
+        return f"rgb({r},0,{b})"
+    
+    def hmean_color(hm):
+        t = (hm - min_hm) / (max_hm - min_hm + 1e-9)
         # blue → red gradient
         r = int(255 * t)
         b = int(255 * (1 - t))
@@ -134,7 +146,9 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
                 "midy": float(row["midy"]),
                 "length": float(row["length"]),
                 "height": float(row["height"]),
-                "color": walkable_color(row["walkable_length"]),
+                "color": hmean_color(row["hmean"]),
+                # "color": h_color(row["height"]),
+                # "color": walkable_color(row["walkable_length"]),
                 # "color": score_color(row["score"]),
                 "popup": popup_html
             },
@@ -155,7 +169,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     # -------------------------------------------------------
     center_lat, center_lon = utm_to_latlon(df["midx"].mean(), df["midy"].mean())
     
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles="cartodbpositron")
+    # m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles="cartodbpositron")
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=7, tiles="Esri.WorldImagery")
     
     gj = folium.GeoJson(
         geojson,
@@ -304,8 +319,9 @@ if __name__ == "__main__":
     # -------------------------------------------------------
     csv_file = sys.argv[1]
     output_html = sys.argv[2]
-    score_threshold = float(sys.argv[3])
-    hmean_threshold = float(sys.argv[4])
+    region = sys.argv[3]
+    score_threshold = float(sys.argv[4])
+    hmean_threshold = float(sys.argv[5])
     utm_zone = 32
     hemisphere = "north"
     # -------------------------------------------------------
@@ -315,5 +331,5 @@ if __name__ == "__main__":
     # -------------------------------------------------------
     df = pd.read_csv(csv_file, sep=" ")
     
-    save_HL_map(df, output_html, score_threshold, utm_zone, hemisphere, hmean_threshold)
+    save_HL_map(df, output_html, score_threshold, utm_zone, hemisphere, hmean_threshold, region)
 

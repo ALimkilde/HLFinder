@@ -12,7 +12,7 @@ import numpy as np
 from scipy.ndimage import shift
 from skimage.measure import block_reduce
 
-from config import MAX_HL_LENGTH, MIN_HL_LENGTH, PX_SIZE_M_SEARCH, PADDING_M
+from config import MAX_HL_LENGTH, MIN_HL_LENGTH, PX_SIZE_M_SEARCH, PADDING_M, PADDING_PX
 
 def clear_image_border(mask, n):
     # Top border
@@ -349,7 +349,7 @@ def get_highline_mask(im_midpoint, im_anchor):
                         im_anchor,
                         math.floor(MIN_HL_LENGTH/(2*PX_SIZE_M_SEARCH)), 
                         math.ceil(MAX_HL_LENGTH/(2*PX_SIZE_M_SEARCH)),
-                        math.floor(10/(2*PX_SIZE_M_SEARCH)),
+                        math.floor(20/(2*PX_SIZE_M_SEARCH)),
                         PX_SIZE_M_SEARCH)
 
     slope_mask = get_slope_mask(im_anchor)
@@ -380,7 +380,7 @@ def search_highline(im, im_min_surf, im_anchor, H, mask):
     for r0 in range(0, nx):
         for c0 in range(0, ny):
             if mask[r0,c0]:
-                h0 = float(im_anchor[r0, c0])
+                h0 = im_anchor[r0, c0]
                 
                 if (h0 < H): 
                     continue
@@ -399,16 +399,21 @@ def search_highline(im, im_min_surf, im_anchor, H, mask):
                             if (l>MAX_HL_LENGTH):
                                 continue
 
+                            rm = (r + r0) // 2
+                            cm = (c + c0) // 2
+                            if (rm < PADDING_PX): continue
+                            if (rm > nx - PADDING_PX): continue
+                            if (cm < PADDING_PX): continue
+                            if (cm > ny - PADDING_PX): continue
+
                             hgoal = hlheight(l)
 
-                            h = float(im_anchor[r, c])
+                            h = im_anchor[r, c]
                             if (h < hgoal): 
                                 continue
 
-                            rm = (r + r0) // 2
-                            cm = (c + c0) // 2
 
-                            h_mid = float(im[rm, cm])
+                            h_mid = im[rm, cm]
                             h_min = min(h, h0)
 
                             if(h_min > h_mid + hgoal):

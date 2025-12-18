@@ -5,16 +5,30 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 
 
-def process_tif(tif_file, output_folder):
+def process_tif(tif_file, output_folder, region = "denmark"):
     """Process a single .tif file: gdal_translate + gdalinfo."""
     tif_file = Path(tif_file)
     base_name = tif_file.stem
 
-    png_path = Path(output_folder) / f"{base_name}.png"
-    info_path = Path(output_folder) / f"{base_name}.info"
+    if region == "sweden":
+        png_path = Path(output_folder) / f"{base_name}_s0p1.png"
+        info_path = Path(output_folder) / f"{base_name}_s0p1.info"
+    else:
+        png_path = Path(output_folder) / f"{base_name}.png"
+        info_path = Path(output_folder) / f"{base_name}.info"
+
 
     # 1. gdal_translate
-    cmd1 = f"gdal_translate -of PNG {tif_file} {png_path}"
+    if region == "sweden":
+        cmd1 = (
+            f"gdal_translate -of PNG "
+            f"-ot UInt16 -scale 0 3000 0 30000 "
+            f"{tif_file} {png_path}"
+        )
+    else:
+        cmd1 = f"gdal_translate -of PNG {tif_file} {png_path}"
+    # For sweden
+    # gdal_translate -of PNG -ot UInt16 -scale 0 3000 0 30000 input.tif 62125_4025_25_s0p1.png
     subprocess.run(
         cmd1,
         shell=True,
@@ -24,6 +38,7 @@ def process_tif(tif_file, output_folder):
     )
 
     # 2. gdalinfo
+    # FOR 
     cmd2 = f"gdalinfo {tif_file} > {info_path}"
     subprocess.run(
         cmd2,
@@ -43,6 +58,7 @@ def main():
 
     input_folder = Path(sys.argv[1])
     output_folder = Path(sys.argv[2])
+    region = sys.argv[3].lower() if len(sys.argv) > 3 else "denmark"
 
     if not input_folder.is_dir():
         print(f"Error: {input_folder} is not a valid directory.")
@@ -61,7 +77,7 @@ def main():
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = {
-            executor.submit(process_tif, tif, output_folder): tif
+            executor.submit(process_tif, tif, output_folder, region): tif
             for tif in tifs
         }
 
