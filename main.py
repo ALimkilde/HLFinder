@@ -340,11 +340,11 @@ if __name__ == "__main__":
     # east_min=2600
     # east_max=7150
     # outname="southern_sweden"
-    north_min=6090
-    north_max=6220
-    east_min=600
-    east_max=740
-    outname="zealand_utm32N_km"
+    north_min=6109
+    north_max=6109
+    east_min=579
+    east_max=579
+    outname="svanninge_bakker"
 
 
     df = create_hl_dataframe()           # read-only in workers

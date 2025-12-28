@@ -30,12 +30,19 @@ PADDING_PX = PADDING_M/PX_SIZE_M_SEARCH
 print(f"PX_SIZE_M_SEARCH: {PX_SIZE_M_SEARCH}")
 
 # Tree settings
-MAX_TREE_ANCHOR   = 15
-MAX_TREE_FRACTION = 0.6
-TREE_DIST         = 1
-PRE_FILT_SIZE     = 2
+MAX_TREE_ANCHOR   = 15       # Maximum allowed anchor height in tree
+MAX_TREE_FRACTION = 0.6      # Maximium fraction of tree height to put anchor 
+                             # (0.6 is allowing 6m high anchors in a 10m tree)
+TREE_DIST         = 1        # How many meters where we allow other trees being "in the way"
+                             # (1: means that it is okey that there are trees in the way 1m infront of anchors. Hopefully we can the find a gap below the tree tops)
+PRE_FILT_SIZE     = 2        
 
 # Clustering settings
-CLUSTER_RADIUS    = 25
-KEEP_METRICS      = ["walkable","rigging_height","hmean"]
+CLUSTER_RADIUS    = 25       # Only save the best line in this radius in meters
+KEEP_METRICS      = ["walkable","rigging_height","hmean"] # What the best line means:
+                                                          #       "height": keep highest line
+                                                          #       "hmean": keep line that has the highest mean height when walking/falling
+                                                          #       "walkable": keep the line with the longest walkable length
+                                                          #       "score": keep the line with the best score (the fraction of the line that is walkable)
+                                                          #       "rigging_height": keep the line with the lowest rigging height
 
