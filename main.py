@@ -249,6 +249,7 @@ def process_task(args):
         )
 
         result =  cluster_and_extract(result, 
+                                      search_pic,
                                       PX_SIZE_M_SEARCH, 
                                       radius=config.CLUSTER_RADIUS, 
                                       keep = config.KEEP_METRICS)
@@ -334,16 +335,16 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    north_min=61400
-    north_max=66000
-    east_min=2600
-    east_max=7150
-    outname="southern_sweden"
-    # north_min=6140
-    # north_max=6190
-    # east_min=512
-    # east_max=552
-    # outname="Vejle_fine_search"
+    # north_min=61400
+    # north_max=66000
+    # east_min=2600
+    # east_max=7150
+    # outname="southern_sweden"
+    north_min=6090
+    north_max=6220
+    east_min=600
+    east_max=740
+    outname="zealand_utm32N_km"
 
 
     df = create_hl_dataframe()           # read-only in workers

@@ -345,7 +345,7 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
                                                  crop_px, 
                                                  px_size_m, 
                                                  px_size_m_output, 
-                                                 'mean',
+                                                 'max',
                                                  pre_filt = True)
 
         out_max_surface, _, _, _ = coarsen_image(mosaic_surface, 

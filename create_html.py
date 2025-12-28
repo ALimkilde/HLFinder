@@ -23,7 +23,7 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     max_h = min(max_h, 60)
 
     min_w, max_w = df["walkable_length"].min(), df["walkable_length"].max()
-    # max_w = min(max_h, 15)
+    # max_w = min(max_w, 150)
     
     min_score, max_score = df["score"].min(), df["score"].max()
     min_score = max(max(min_score, 0), score_threshold)
@@ -169,12 +169,43 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
     # -------------------------------------------------------
     center_lat, center_lon = utm_to_latlon(df["midx"].mean(), df["midy"].mean())
     
-    # m = folium.Map(location=[center_lat, center_lon], zoom_start=13, tiles="cartodbpositron")
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=7, tiles="Esri.WorldImagery")
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=7,
+        tiles=None   # IMPORTANT: disable default basemap
+    )
+
+    # Lightweight base map
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        name="Lightweight map",
+        control=True
+    ).add_to(m)
+    
+    # Satellite imagery
+    folium.TileLayer(
+        tiles="Esri.WorldImagery",
+        name="Satellite",
+        control=True
+    ).add_to(m)
+
+    # folium.TileLayer(
+    #     tiles="CartoDB dark_matter",
+    #     name="Dark map"
+    # ).add_to(m)
+
+    # folium.TileLayer(
+    #     tiles="Stamen Terrain Labels",
+    #     name="Labels",
+    #     overlay=True
+    # ).add_to(m)
+    
     
     gj = folium.GeoJson(
         geojson,
-        name="Lines",
+        name="Lines",        # name is REQUIRED
+        overlay=True,        # explicitly mark as overlay
+        control=True,        # show in layer switch
         style_function=lambda f: {
             "color": f["properties"]["color"],
             "weight": 7,
@@ -183,6 +214,8 @@ def save_HL_map(df, output_html, score_threshold=0, utm_zone=32, hemisphere="nor
         tooltip=folium.GeoJsonTooltip(fields=["midx", "midy"]),
         popup=folium.GeoJsonPopup(fields=["popup"])
     ).add_to(m)
+
+    folium.LayerControl(collapsed=False).add_to(m)
     
     map_id = m.get_name()
     gj_id = gj.get_name()
