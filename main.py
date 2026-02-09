@@ -344,7 +344,7 @@ if __name__ == "__main__":
     north_max=6109
     east_min=579
     east_max=579
-    outname="svanninge_bakker"
+    outname="benchmark"
 
 
     df = create_hl_dataframe()           # read-only in workers

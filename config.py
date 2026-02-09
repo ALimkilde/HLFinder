@@ -18,7 +18,7 @@ else:
 
 print(f"PX_SIZE_M: {PX_SIZE_M}")
 # Search parameters
-px_size_m_goal = 4.5
+px_size_m_goal = 1.0
 print(f"px_size_m_goal: {px_size_m_goal}")
 
 MIN_HL_LENGTH = 80
@@ -30,7 +30,7 @@ PADDING_PX = PADDING_M/PX_SIZE_M_SEARCH
 print(f"PX_SIZE_M_SEARCH: {PX_SIZE_M_SEARCH}")
 
 # Tree settings
-MAX_TREE_ANCHOR   = 15       # Maximum allowed anchor height in tree
+MAX_TREE_ANCHOR   = 7        # Maximum allowed anchor height in tree
 MAX_TREE_FRACTION = 0.6      # Maximium fraction of tree height to put anchor 
                              # (0.6 is allowing 6m high anchors in a 10m tree)
 TREE_DIST         = 1        # How many meters where we allow other trees being "in the way"

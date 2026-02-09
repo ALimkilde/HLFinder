@@ -23,6 +23,7 @@ def load_dem_png(path):
     """
 
     # Read image (uint16 preserved)
+    cv2.setNumThreads(0)
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise IOError(f"Could not read image: {path}")
