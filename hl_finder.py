@@ -1,5 +1,5 @@
 import sys
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pl
 import numpy as np
 import math
 from scipy.ndimage import maximum_filter, minimum_filter
@@ -419,7 +419,7 @@ def search_highline(im, im_min_surf, im_anchor, H, mask):
                             if(h_min > h_mid + hgoal):
                                 score, do_not_hit_tree, hmean_terr, hmean_surf, walkable = get_score(im, im_min_surf, r0, c0, r, c, PX_SIZE_M_SEARCH, h_min, l)
                                 
-                                if (score>0.4 and do_not_hit_tree):
+                                if (score>0.3 and do_not_hit_tree):
                                     result.append(( rm, cm, r0, c0, r, c, h_min, l, h_mid, h0, h, hgoal, score, hmean_terr, hmean_surf, walkable))
                  
 

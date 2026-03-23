@@ -7,10 +7,52 @@ import cv2
 import sys
 from scipy.ndimage import maximum_filter, minimum_filter
 from numba import njit
+from pathlib import Path
+import lz4.frame
 
 from config import MAX_TREE_ANCHOR, MAX_TREE_FRACTION, MAX_HL_LENGTH, PRE_FILT_SIZE, PADDING_M, REGION, STEP_SIZE, COOR_SIZE
 import re
 
+def load_dem_bin_lz4(path):
+    """
+    Loads a uint16 DEM from .bin.lz4 (ENVI raw binary).
+
+    Assumes data is scaled ×10
+    Expects an accompanying .hdr file in the same folder.
+    """
+    path = Path(path)
+    lz4_path = path.with_suffix(".bin.lz4")
+    hdr_path = path.with_suffix(".hdr")
+
+    if not os.path.exists(lz4_path):
+        # print("DOESNT EXISTS")
+        return None, True
+
+    # --- 1. Read ENVI header to get shape ---
+    header_info = {}
+    with open(hdr_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                key, val = line.split("=")
+                header_info[key.strip().lower()] = val.strip()
+
+    # ENVI header: samples = width, lines = height
+    width = int(header_info["samples"])
+    height = int(header_info["lines"])
+
+    # --- 2. Read LZ4 compressed binary into memory ---
+    with lz4.frame.open(lz4_path, "rb") as f:
+        raw_data = f.read()
+
+    # --- 3. Convert to float32 array ---
+    img = np.frombuffer(raw_data, dtype=np.uint16)
+    img = img.reshape((height, width)).astype(np.float32)
+
+    # --- 4. Down scale the hardcoded amount (10x) ---
+    img = img/10
+
+    return img, False # not_found = False
 
 def load_dem_png(path):
     """
@@ -21,6 +63,12 @@ def load_dem_png(path):
         *_s1.png    -> scale = 1.0
         no suffix   -> scale = 1.0 (fallback)
     """
+
+    png_path = Path(path).with_suffix(".png")
+
+    if not os.path.exists(png_path):
+        # print("DOESNT EXISTS")
+        return None, True
 
     # Read image (uint16 preserved)
     cv2.setNumThreads(0)
@@ -42,7 +90,7 @@ def load_dem_png(path):
         raise ValueError(f"Suspicious scale factor: {scale}")
 
     img = img * scale
-    return img
+    return img, False # not_found = False
 
 def get_anchors(terr, surf):
     maxh  = np.maximum(terr, surf)
@@ -82,6 +130,14 @@ class SearchPicture:
         new_coor = np.add(self.ref_coords,diff*self.px_size_m)
         return tuple(new_coor)
 
+    def px_from_utm(self, n, e):
+        diff = np.subtract((n,e), self.ref_coords)
+        diff[1] = -diff[1] 
+        diff = np.array((diff[1],diff[0]))
+        new_coor = np.add(self.ref_px,diff/self.px_size_m)
+        return tuple(new_coor)
+
+
 def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
                   tile_size_km=1, tile_px=2500):
     """
@@ -107,30 +163,27 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     out_w = n_cols * tile_px
 
     # Initialize mosaic as float or uint8 (depending on your data)
-    mosaic = np.zeros((out_h, out_w), dtype=np.uint8)
+    mosaic = np.zeros((out_h, out_w))
 
     tiles_found = False
 
     for north in range(north_min, north_max + 1, STEP_SIZE):
         for east in range(east_min, east_max + 1, STEP_SIZE):
             if REGION == "Denmark":
-                filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}.png"
+                filename = f"DTM/DTM_{tile_size_km}km_{north}_{east}"
             else:
-                filename = f"DTM/{north}_{east}_25.png"
+                filename = f"DTM/{north}_{east}_25"
 
             path = f"{folder_path}/{filename}"
             # print(f"path: {path}")
-            if not os.path.exists(path):
-                # print("DOESNT EXISTS")
-                continue
-
-            tiles_found = True
 
             # Read tile as grayscale NumPy array
-            img = load_dem_png(path)
-            # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-            # img = np.array(Image.open(path).convert("L"))
+            # img, not_found = load_dem_png(path)
+            img, not_found = load_dem_bin_lz4(path)
 
+            if not_found: continue
+
+            tiles_found = True
 
             # Compute placement in output
             col = (east - east_min)//STEP_SIZE
@@ -151,21 +204,23 @@ def combine_tiles(folder_path, north_min, north_max, east_min, east_max,
     for north in range(north_min, north_max + 1, STEP_SIZE):
         for east in range(east_min, east_max + 1, STEP_SIZE):
             if REGION == "Denmark":
-                filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}.png"
+                filename = f"DSM/DSM_{tile_size_km}km_{north}_{east}"
             else:
-                filename = f"DSM/{north}_{east}_25_s0p1.png"
+                filename = f"DSM/{north}_{east}_25"
 
             path = f"{folder_path}/{filename}"
-            # print(f"search for {path}")
-            if not os.path.exists(path):
-                continue
 
             # print(f"Found surface data: {filename}")
 
+            # Read tile as grayscale NumPy array
+            # img = load_dem_png(path)
+            img, not_found = load_dem_bin_lz4(path)
+
+            if not_found:
+                continue
+
             tiles_found = True
 
-            # Read tile as grayscale NumPy array
-            img = load_dem_png(path)
             # img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
             # img = np.array(Image.open(path).convert("L"))
 
@@ -322,12 +377,12 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
     east_max = east + max_hl_length_in_tiles*STEP_SIZE
 
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
-    # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
+    print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
 
     refpx_row_in = 2*tile_size_px 
     refpx_col_in = tile_size_px
  
-    mosaic, mosaic_surface = combine_tiles(folder_path, north_min, north_max, east_min, east_max)
+    mosaic, mosaic_surface = combine_tiles(folder_path, north_min, north_max, east_min, east_max, tile_px=tile_size_px)
 
     if mosaic is None:
         return None

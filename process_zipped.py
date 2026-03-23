@@ -10,19 +10,34 @@ from tqdm import tqdm   # pip install tqdm
 
 def process_zip(zip_path: Path, output_base: Path, mv_path: Path):
     """Extract a zip, run the processing script, delete temp folder."""
-    # Create temporary working directory
     workdir = Path(tempfile.mkdtemp())
 
-    # Extract zip into the temporary directory
     # print(zip_path)
-    with zipfile.ZipFile(zip_path, 'r') as z:
-        z.extractall(workdir)
+
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            z.extractall(workdir)
+
+    except Exception as e:
+        print(f"Extraction failed for {zip_path}: {e}")
+
+        # Create ../broken_zips relative to the zip file directory
+        broken_dir = (zip_path.parent.parent / "broken_zips").resolve()
+        broken_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy the failed zip there
+        shutil.copy2(zip_path, broken_dir / zip_path.name)
+
+        # Clean up temp directory
+        shutil.rmtree(workdir, ignore_errors=True)
+
+        return  # Stop further processing
 
     # Run your processing command
     subprocess.run(
         [
             "python",
-            "process_10b10_tile.py",
+            "process_tiles_in_folder.py",
             str(workdir),
             str(output_base),
         ],

@@ -10,32 +10,59 @@ def process_tif(tif_file, output_folder, region = "denmark"):
     tif_file = Path(tif_file)
     base_name = tif_file.stem
 
-    if region == "sweden":
-        png_path = Path(output_folder) / f"{base_name}_s0p1.png"
-        info_path = Path(output_folder) / f"{base_name}_s0p1.info"
-    else:
-        png_path = Path(output_folder) / f"{base_name}.png"
-        info_path = Path(output_folder) / f"{base_name}.info"
+    tif = Path(tif_file)
+    bin_path = Path(output_folder) / f"{tif.stem}.bin"
+    lz4_path = bin_path.with_suffix(".bin.lz4")
+    info_path = Path(output_folder) / f"{base_name}.info"
+    
+    tmp_tif = Path(output_folder) / f"{base_name}_2m_tmp.tif" # temporary downsampled GeoTIFF
 
+    cmd_warp = [
+        "gdalwarp",
+        "-tr", "2", "2",
+        "-r", "max",
+        str(tif),
+        str(tmp_tif),
+    ]
 
-    # 1. gdal_translate
-    if region == "sweden":
-        cmd1 = (
-            f"gdal_translate -of PNG "
-            f"-ot UInt16 -scale 0 3000 0 30000 "
-            f"{tif_file} {png_path}"
-        )
-    else:
-        cmd1 = f"gdal_translate -of PNG {tif_file} {png_path}"
-    # For sweden
-    # gdal_translate -of PNG -ot UInt16 -scale 0 3000 0 30000 input.tif 62125_4025_25_s0p1.png
-    subprocess.run(
-        cmd1,
-        shell=True,
-        check=True,
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
+    cmd_translate = [
+        "gdal_translate",
+        "-of", "ENVI",
+        "-ot", "UInt16",
+        "-scale", "0", "3000", "0", "30000",  # exact 10× scaling
+        str(tmp_tif),
+        str(bin_path),
+    ]
+
+    cmd_lz4 = [
+        "lz4",
+        "-f",
+        str(bin_path),
+        str(lz4_path),
+    ]
+
+    subprocess.run(cmd_warp, 
+                   check=True,
+                   stderr=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL,
+                   )
+
+    subprocess.run(cmd_translate, 
+                   check=True,
+                   stderr=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL,
+                   )
+
+    subprocess.run(cmd_lz4, 
+                   check=True,
+                   stderr=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL,
+                   )
+
+    # cleanup large intermediate files
+    bin_path.unlink()              # remove uncompressed .bin
+    tmp_tif.unlink()               # remove temp GeoTIFF
+    tmp_tif.with_suffix(".tif.aux.xml").unlink(missing_ok=True)
 
     # 2. gdalinfo
     # FOR 
@@ -87,9 +114,8 @@ def main():
                 future.result()
                 # print(f"✓ {tif_name}")
             except Exception as e:
-                sys.exit()
                 # print(f"✗ Error processing {tif_name}: {e}")
-                # print(f"✓ {tif_name}")
+                sys.exit()
 
 
 if __name__ == "__main__":

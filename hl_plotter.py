@@ -1,8 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
+from search_picture import get_search_picture
+import sys
+import math
 
-from config import TREE_DIST
+from config import TREE_DIST, PX_SIZE_M, TILE_SIZE_M
 
 @njit
 def hlheight(l):
@@ -158,7 +161,7 @@ def extract_line_profiles(terrain, surface, anchor, r0, c0, r1, c1, px_size_m):
 
 
 def plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, hanchor):
-    plt.figure(figsize=(8, 4))
+    # plt.figure(figsize=(8, 4))
 
     ideal_height_backup = np.empty(len(d_m))
     ideal_height_leash = np.empty(len(d_m))
@@ -192,3 +195,52 @@ def plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, hanchor):
     plt.tight_layout()
     plt.show()
 
+def utm_to_tile(n1, e1, n2, e2):
+    to_km = 0.001
+    n_mid = (n2 + n1)/2
+    e_mid = (e2 + e1)/2
+
+    return int(n_mid*to_km), int(e_mid*to_km)
+
+def plot_from_utm(n1, e1, n2, e2, folder_path):
+
+    north, east= utm_to_tile(n1, e1, n2, e2)
+    sp = get_search_picture(folder_path, north, east, PX_SIZE_M, TILE_SIZE_M, TILE_SIZE_M//PX_SIZE_M)
+
+    r0, c0 = sp.px_from_utm(e1, n1)
+    r1, c1 = sp.px_from_utm(e2, n2)
+
+    r0 = int(r0)
+    c0 = int(c0)
+    r1 = int(r1)
+    c1 = int(c1)
+
+    terr = sp.im
+    surf = sp.im_min_surf
+    anch = sp.im_anchor
+
+    score = 0
+    l = math.sqrt((n2 - n1)**2 + (e2 - e1)**2)
+    h_min = 0
+    h0 = anch[r0, c0]
+    h1 = anch[r1, c1]
+
+    print(f"utm: {e1}, {n1}")
+    print(f"coords: {r0}, {c0}")
+    print(f"coords: {r1}, {c1}")
+    plt.subplot(1,2,1)
+    plt.scatter([c0,c1], [r0,r1], c='r', s=50)
+    plt.imshow(terr)
+
+    d_m, terr, surf, anch = extract_line_profiles(terr, surf, anch, r0, c0, r1, c1, PX_SIZE_M)
+    plt.subplot(1,2,2)
+    plot_line_profiles(d_m, terr, surf, anch, score, l, h_min, min(h0,h1))
+
+if __name__ == "__main__":
+    path = sys.argv[1]
+    e1 = int(sys.argv[2])
+    n1  = int(sys.argv[3])
+    e2 = int(sys.argv[4])
+    n2 = int(sys.argv[5])
+
+    plot_from_utm(n1, e1, n2, e2, path)

@@ -229,12 +229,16 @@ def process_task(args):
         c_north,
         c_east,
         PX_SIZE_M_SEARCH,
-        tile_size_meter = config.TILE_SIZE_M
+        tile_size_meter = config.TILE_SIZE_M,
+        tile_size_px = int(config.TILE_SIZE_M / config.PX_SIZE_M)
     )
+
     if search_pic == None:
         return None
 
+
     mask = get_highline_mask(search_pic.im, search_pic.im_anchor)
+
 
     if (np.all(mask == False)):
         result = []
@@ -340,11 +344,22 @@ if __name__ == "__main__":
     # east_min=2600
     # east_max=7150
     # outname="southern_sweden"
-    north_min=6109
-    north_max=6109
-    east_min=579
-    east_max=579
-    outname="benchmark"
+    # north_min=6039
+    # north_max=6409
+    # east_min=439
+    # east_max=899
+    # outname="Denmark_lz4_px4"
+    # north_min=6179
+    # north_max=6179
+    # east_min=532
+    # east_max=532
+    # outname="benchmark"
+    
+    north_min=6139
+    north_max=6209
+    east_min=660
+    east_max=739
+    outname="Zealand_optimistic"
 
 
     df = create_hl_dataframe()           # read-only in workers
