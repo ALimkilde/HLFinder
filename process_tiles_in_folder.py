@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
+from tqdm import tqdm
 
 
 def process_tif(tif_file, output_folder, region = "denmark"):
@@ -99,23 +100,25 @@ def main():
         return
 
     # Number of workers — you can tune this
-    workers = os.cpu_count() or 4
-    # print(f"Processing {len(tifs)} TIFF files with {workers} workers...")
+    # workers = os.cpu_count() or 4
+    workers = 4
+    print(f"Processing {len(tifs)} TIFF files with {workers} workers...")
+
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = {
-            executor.submit(process_tif, tif, output_folder, region): tif
-            for tif in tifs
-        }
+                executor.submit(process_tif, tif, output_folder, region): tif
+                for tif in tifs
+                }
 
-        for future in as_completed(futures):
-            tif_name = futures[future].name
-            try:
-                future.result()
-                # print(f"✓ {tif_name}")
-            except Exception as e:
-                # print(f"✗ Error processing {tif_name}: {e}")
-                sys.exit()
+    for future in tqdm(as_completed(futures), total=len(futures)):
+        tif_name = futures[future].name
+        try:
+            future.result()
+            print(f"✓ {tif_name}")
+        except Exception as e:
+            print(f"✗ Error processing {tif_name}: {e}")
+            sys.exit()
 
 
 if __name__ == "__main__":

@@ -377,7 +377,7 @@ def get_search_picture(folder_path, north, east, px_size_m_output, tile_size_met
     east_max = east + max_hl_length_in_tiles*STEP_SIZE
 
     # print(f"north_min={north_min}\nnorth_max={north_max}\neast_min={east_min}\neast_max={east_max}")
-    print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
+    # print(f"north_min={north_min} north_max={north_max} east_min={east_min} east_max={east_max}")
 
     refpx_row_in = 2*tile_size_px 
     refpx_col_in = tile_size_px

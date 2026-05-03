@@ -339,11 +339,11 @@ if __name__ == "__main__":
 
     fld = sys.argv[1]
 
-    # north_min=61400
-    # north_max=66000
-    # east_min=2600
-    # east_max=7150
-    # outname="southern_sweden"
+    north_min=64000
+    north_max=67000
+    east_min=2800
+    east_max=3100
+    outname="southern_sweden"
     # north_min=6039
     # north_max=6409
     # east_min=439
@@ -355,11 +355,11 @@ if __name__ == "__main__":
     # east_max=532
     # outname="benchmark"
     
-    north_min=6139
-    north_max=6209
-    east_min=660
-    east_max=739
-    outname="Zealand_optimistic"
+    # north_min=6139
+    # north_max=6209
+    # east_min=660
+    # east_max=739
+    # outname="Zealand_optimistic"
 
 
     df = create_hl_dataframe()           # read-only in workers
@@ -388,7 +388,7 @@ if __name__ == "__main__":
         )
 
 
-    all_results = run_tasks(tasks, use_parallel=True)
+    all_results = run_tasks(tasks, use_parallel=False)
     if (len(all_results) == 0):
         sys.exit()
 

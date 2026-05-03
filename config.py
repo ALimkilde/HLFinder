@@ -1,7 +1,7 @@
 import math
 
 # REGION = "Denmark"
-REGION = "Denmark"
+REGION = "Sweden"
 
 # Original picture
 if REGION == "Denmark":

@@ -18,7 +18,7 @@ TILE_SIZE = 1000  # 1×1 km
 
 # Regex to match DTM_1km_6101_511.png or DSM_...
 pattern = re.compile(r"D[TS]M_1km_(\d+)_(\d+)\.png")
-pattern_sweref = re.compile(r"(\d+)_(\d+)_\d+\.tif")
+pattern_sweref = re.compile(r"(\d+)_(\d+)_\d+\.bin.lz4")
 
 # ------------------------------
 # 1. Read tiles
